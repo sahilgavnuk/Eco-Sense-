@@ -1,0 +1,94 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --forest-950: #071712;
+    --forest-900: #0B231B;
+    --forest-800: #0F2E23;
+    --forest-700: #154233;
+    --forest-600: #1C5A46;
+    --emerald-500: #10B981;
+    --emerald-400: #34D399;
+    --mint-100: #D1FAE5;
+    --mint-50: #ECFDF5;
+    --ivory-50: #FBFBFA;
+    --charcoal-900: #111827;
+    --graphite-700: #374151;
+  }
+}
+
+/* Custom Scanning Laser Animation */
+@keyframes scanLaser {
+  0% {
+    top: 0%;
+    opacity: 0.8;
+  }
+  50% {
+    top: 98%;
+    opacity: 1;
+  }
+  100% {
+    top: 0%;
+    opacity: 0.8;
+  }
+}
+
+.animate-scan-laser {
+  animation: scanLaser 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* Bounding box pulse */
+@keyframes boxPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.8), 0 0 15px rgba(16, 185, 129, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 2px rgba(52, 211, 153, 1), 0 0 25px rgba(52, 211, 153, 0.7);
+  }
+}
+
+.animate-box-pulse {
+  animation: boxPulse 2s infinite;
+}
+
+/* Pulse Glow */
+@keyframes pulseGlow {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.05);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 4s ease-in-out infinite;
+}
+
+/* Custom scrollbar for analytics tables & lists */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Leaflet map container height */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  border-radius: 0.75rem;
+}
