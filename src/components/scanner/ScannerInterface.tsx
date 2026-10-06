@@ -1,95 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Camera, Upload, Sparkles, ShieldCheck, RefreshCw, Layers, Eye } from 'lucide-react';
-import type { ScanResult, WasteCategory, ContaminationLevel, DetectedObject } from '../../types';
+import type { ScanResult } from '../../types';
 import { SAMPLE_SCANS } from '../../data/mockData';
 import ScanResultCard from './ScanResultCard';
 
 interface ScannerInterfaceProps {
   onScanComplete?: (result: ScanResult) => void;
-  onNavigateToMap?: () => void;
   compactMode?: boolean;
 }
 
-const GENERATE_CUSTOM_SCAN = (imageSource: string, telemetryOptIn: boolean): ScanResult => {
-  const dynamicPresets: Array<{
-    primaryCategory: WasteCategory;
-    primaryCondition: ContaminationLevel;
-    overallRecommendation: string[];
-    explainableAI: string;
-    objects: DetectedObject[];
-  }> = [
-    {
-      primaryCategory: 'Dry / Recyclable',
-      primaryCondition: 'Slightly Contaminated',
-      overallRecommendation: ['Empty liquid contents', 'Rinse gently with water', 'Place in Dry Recyclables Bin'],
-      explainableAI: 'AI identified a polymer structure (93% confidence) based on edge density, surface reflectance, and container contour.',
-      objects: [
-        {
-          id: `custom-obj-1-${Date.now()}`,
-          label: 'Plastic Container / Bottle',
-          category: 'Dry / Recyclable',
-          material: 'HDPE / PET Polymer',
-          confidence: 93,
-          box: { x: 20, y: 18, w: 60, h: 62 },
-          condition: 'Slightly Contaminated',
-          disposalRecommendation: ['Rinse residual liquids with clean water', 'Secure cap', 'Recycle in Dry Waste container'],
-          whyExplanation: 'Standard recyclable polymer structure detected with high surface reflectance.'
-        }
-      ]
-    },
-    {
-      primaryCategory: 'Dry / Recyclable',
-      primaryCondition: 'Clean',
-      overallRecommendation: ['Flatten packaging box', 'Remove synthetic tape', 'Deposit in paper recycling'],
-      explainableAI: 'High confidence detection of corrugated fiberboard (96% confidence). Clean fiber material ready for repulping.',
-      objects: [
-        {
-          id: `custom-obj-2-${Date.now()}`,
-          label: 'Corrugated Shipping Packaging',
-          category: 'Dry / Recyclable',
-          material: 'Kraft Cellulose Fiber',
-          confidence: 96,
-          box: { x: 15, y: 15, w: 70, h: 68 },
-          condition: 'Clean',
-          disposalRecommendation: ['Flatten container', 'Remove tape', 'Place in dry cardboard collection'],
-          whyExplanation: 'Cellulose pulp material with minimal contamination detected.'
-        }
-      ]
-    },
-    {
-      primaryCategory: 'Wet / Organic',
-      primaryCondition: 'Mixed-material',
-      overallRecommendation: ['Separate organic waste into Compost/Wet bin', 'Rinse container and place in Recyclables'],
-      explainableAI: 'Detected perishable food residue (90% confidence) alongside rigid packaging.',
-      objects: [
-        {
-          id: `custom-obj-3-${Date.now()}`,
-          label: 'Organic Food Waste',
-          category: 'Wet / Organic',
-          material: 'Compostable Organic Matter',
-          confidence: 90,
-          box: { x: 25, y: 22, w: 50, h: 50 },
-          condition: 'Mixed-material',
-          disposalRecommendation: ['Scrape food scraps into Green/Wet Waste Bin or Home Compost'],
-          whyExplanation: 'Perishable organic content suitable for composting or biomethanation.'
-        }
-      ]
-    }
-  ];
-
-  const selected = dynamicPresets[Math.floor(Math.random() * dynamicPresets.length)];
-
-  return {
-    id: `scan-${Date.now()}`,
-    timestamp: new Date().toISOString(),
-    imageUrl: imageSource,
-    zone: 'Zone 2 — Central District',
-    anonymizedTelemetryOptIn: telemetryOptIn,
-    ...selected
-  };
-};
-
-export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({ onScanComplete, onNavigateToMap, compactMode: _compactMode = false }) => {
+export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({ onScanComplete, compactMode: _compactMode = false }) => {
   const [selectedSampleIndex, setSelectedSampleIndex] = useState<number>(0);
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [scanStepText, setScanStepText] = useState<string>('');
@@ -103,6 +23,12 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({ onScanComple
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Auto-load first sample scan on mount
+  useEffect(() => {
+    triggerScanSimulation(SAMPLE_SCANS[0].imageUrl, SAMPLE_SCANS[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Stop camera when unmounted
   useEffect(() => {
     return () => {
@@ -112,22 +38,21 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({ onScanComple
     };
   }, [cameraStream]);
 
-  // Bind camera stream to video element whenever camera is active
-  useEffect(() => {
-    if (useCamera && cameraStream && videoRef.current) {
-      videoRef.current.srcObject = cameraStream;
-      videoRef.current.play().catch(() => {});
-    }
-  }, [useCamera, cameraStream]);
-
-  // Start Camera
+  // Toggle Camera on/off
   const handleStartCamera = async () => {
+    if (useCamera) {
+      handleStopCamera();
+      return;
+    }
     try {
       setUploadedImageUrl(null);
       setCurrentScanResult(null);
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
       setCameraStream(stream);
       setUseCamera(true);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
     } catch (err) {
       alert('Camera access unavailable or denied. Please select a sample item or upload an image.');
       setUseCamera(false);
@@ -142,32 +67,6 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({ onScanComple
     setUseCamera(false);
   };
 
-  // Capture snapshot frame from live camera stream
-  const captureCameraSnapshot = (): string | null => {
-    if (videoRef.current && videoRef.current.videoWidth > 0 && videoRef.current.videoHeight > 0) {
-      const canvas = document.createElement('canvas');
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-        return canvas.toDataURL('image/jpeg', 0.85);
-      }
-    }
-    return null;
-  };
-
-  const handleCaptureCamera = () => {
-    const snapshotUrl = captureCameraSnapshot();
-    handleStopCamera();
-    if (snapshotUrl) {
-      setUploadedImageUrl(snapshotUrl);
-      triggerScanSimulation(snapshotUrl, null);
-    } else {
-      triggerScanSimulation('camera-capture', null);
-    }
-  };
-
   // Handle File Upload
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -176,9 +75,8 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({ onScanComple
       reader.onload = (event) => {
         if (event.target?.result) {
           handleStopCamera();
-          const imgUrl = event.target.result as string;
-          setUploadedImageUrl(imgUrl);
-          triggerScanSimulation(imgUrl, null);
+          setUploadedImageUrl(event.target.result as string);
+          triggerScanSimulation(event.target.result as string, null);
         }
       };
       reader.readAsDataURL(file);
@@ -209,7 +107,17 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({ onScanComple
         clearInterval(interval);
         setIsScanning(false);
 
-        const activeResult: ScanResult = sampleData || GENERATE_CUSTOM_SCAN(imageSource, telemetryOptIn);
+        const activeResult: ScanResult = sampleData || (() => {
+          // Pick a random sample as the "AI result" for uploaded images — randomized each scan
+          const randomSample = SAMPLE_SCANS[Math.floor(Math.random() * SAMPLE_SCANS.length)];
+          return {
+            ...randomSample,
+            id: `scan-${Date.now()}`,
+            timestamp: new Date().toISOString(),
+            imageUrl: imageSource,
+            anonymizedTelemetryOptIn: telemetryOptIn,
+          };
+        })();
 
         setCurrentScanResult(activeResult);
         if (activeResult.objects.length > 0) {
@@ -219,7 +127,7 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({ onScanComple
           onScanComplete(activeResult);
         }
       }
-    }, 400);
+    }, 450);
   };
 
   const handleSelectSample = (idx: number) => {
@@ -255,8 +163,8 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({ onScanComple
 
           <div className="flex flex-wrap items-center gap-2">
             <button
-              onClick={useCamera ? handleStopCamera : handleStartCamera}
-              className={`px-4 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 transition-all shadow-md cursor-pointer ${
+              onClick={handleStartCamera}
+              className={`px-4 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 transition-all shadow-md ${
                 useCamera
                   ? 'bg-amber-500 hover:bg-amber-600 text-white'
                   : 'bg-[#10B981] hover:bg-[#059669] text-white'
@@ -268,7 +176,7 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({ onScanComple
 
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-sm flex items-center gap-2 border border-white/15 transition-all cursor-pointer"
+              className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-sm flex items-center gap-2 border border-white/15 transition-all"
             >
               <Upload className="w-4 h-4" />
               Upload Image
@@ -292,7 +200,7 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({ onScanComple
             <button
               key={sample.id}
               onClick={() => handleSelectSample(idx)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all flex items-center gap-2 border cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all flex items-center gap-2 border ${
                 selectedSampleIndex === idx && !useCamera && !uploadedImageUrl
                   ? 'bg-[#10B981] text-white border-emerald-400 font-bold shadow-sm'
                   : 'bg-white/5 hover:bg-white/10 text-emerald-100 border-white/10'
@@ -344,7 +252,6 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({ onScanComple
               <div className="absolute inset-0 pointer-events-none">
                 {currentScanResult.objects.map((obj) => {
                   const isSelected = obj.id === selectedObjectId;
-                  const tagPosition = obj.box.y < 16 ? 'top-1 left-1' : '-top-8 left-0';
                   return (
                     <div
                       key={obj.id}
@@ -368,7 +275,7 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({ onScanComple
                       <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 border-b-2 border-r-2 border-[#10B981]"></div>
 
                       {/* Label Tag */}
-                      <div className={`absolute ${tagPosition} flex items-center gap-1.5 px-2.5 py-1 bg-[#0F2E23]/90 backdrop-blur text-white text-xs font-semibold rounded-md border border-[#10B981]/50 shadow-lg whitespace-nowrap z-40`}>
+                      <div className="absolute -top-8 left-0 flex items-center gap-1.5 px-2.5 py-1 bg-[#0F2E23]/90 backdrop-blur text-white text-xs font-semibold rounded-md border border-[#10B981]/50 shadow-lg whitespace-nowrap">
                         <span>{obj.label}</span>
                         <span className="text-[#34D399] font-mono text-[11px]">
                           {obj.confidence}%
@@ -380,12 +287,12 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({ onScanComple
               </div>
             )}
 
-            {/* Empty state capture prompt button if camera active */}
+            {/* Empty state scan prompt button if camera active */}
             {useCamera && !isScanning && !currentScanResult && (
               <div className="absolute bottom-6 inset-x-0 flex justify-center z-30">
                 <button
-                  onClick={handleCaptureCamera}
-                  className="px-6 py-3 rounded-full bg-[#10B981] hover:bg-[#059669] text-white font-bold shadow-xl flex items-center gap-2 transform hover:scale-105 transition-all cursor-pointer"
+                  onClick={() => triggerScanSimulation('camera-capture', null)}
+                  className="px-6 py-3 rounded-full bg-[#10B981] hover:bg-[#059669] text-white font-bold shadow-xl flex items-center gap-2 transform hover:scale-105 transition-all"
                 >
                   <Sparkles className="w-5 h-5" />
                   Capture & Analyze Waste
@@ -445,7 +352,7 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({ onScanComple
                       <button
                         key={obj.id}
                         onClick={() => setSelectedObjectId(obj.id)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
                           selectedObjectId === obj.id
                             ? 'bg-[#0F2E23] text-white shadow'
                             : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
@@ -463,7 +370,6 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({ onScanComple
               <ScanResultCard
                 result={currentScanResult}
                 activeObject={selectedObject || currentScanResult.objects[0]}
-                onNavigateToMap={onNavigateToMap}
                 onScanAnother={() => {
                   if (useCamera) {
                     setCurrentScanResult(null);
@@ -494,4 +400,3 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({ onScanComple
 };
 
 export default ScannerInterface;
-

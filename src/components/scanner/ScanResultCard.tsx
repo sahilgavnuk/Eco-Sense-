@@ -6,10 +6,9 @@ interface ScanResultCardProps {
   result: ScanResult;
   activeObject: DetectedObject;
   onScanAnother: () => void;
-  onNavigateToMap?: () => void;
 }
 
-export const ScanResultCard: React.FC<ScanResultCardProps> = ({ result: _result, activeObject, onScanAnother, onNavigateToMap }) => {
+export const ScanResultCard: React.FC<ScanResultCardProps> = ({ result: _result, activeObject, onScanAnother }) => {
   const getCategoryColor = (cat: string) => {
     switch (cat) {
       case 'Dry / Recyclable':
@@ -35,6 +34,8 @@ export const ScanResultCard: React.FC<ScanResultCardProps> = ({ result: _result,
         return 'text-amber-700 bg-amber-50';
       case 'Heavily Contaminated':
         return 'text-rose-700 bg-rose-50';
+      case 'Mixed-material':
+        return 'text-orange-700 bg-orange-50';
       default:
         return 'text-gray-700 bg-gray-50';
     }
@@ -117,24 +118,17 @@ export const ScanResultCard: React.FC<ScanResultCardProps> = ({ result: _result,
       <div className="grid grid-cols-2 gap-2 pt-2">
         <button
           onClick={onScanAnother}
-          className="px-4 py-2.5 bg-[#0F2E23] hover:bg-[#154233] text-white font-semibold text-xs rounded-xl flex items-center justify-center gap-2 shadow transition-all cursor-pointer"
+          className="px-4 py-2.5 bg-[#0F2E23] hover:bg-[#154233] text-white font-semibold text-xs rounded-xl flex items-center justify-center gap-2 shadow transition-all"
         >
           <RefreshCw className="w-3.5 h-3.5" /> Scan Another Item
         </button>
 
-        <button
-          onClick={() => {
-            if (onNavigateToMap) {
-              onNavigateToMap();
-            } else {
-              const mapEl = document.getElementById('map');
-              if (mapEl) mapEl.scrollIntoView({ behavior: 'smooth' });
-            }
-          }}
-          className="px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-[#0F2E23] font-semibold text-xs rounded-xl border border-emerald-200 flex items-center justify-center gap-2 transition-all cursor-pointer"
+        <a
+          href="#map"
+          className="px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-[#0F2E23] font-semibold text-xs rounded-xl border border-emerald-200 flex items-center justify-center gap-2 transition-all"
         >
           <MapPin className="w-3.5 h-3.5 text-[#10B981]" /> Find Collection Point
-        </button>
+        </a>
       </div>
     </div>
   );
