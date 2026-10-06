@@ -26,7 +26,7 @@ export function App() {
               <h1 className="text-3xl font-extrabold text-[#0F2E23]">AI Waste Intelligence Scanner</h1>
               <p className="text-xs text-gray-600">Scan waste items, analyze material composition, and discover disposal protocols.</p>
             </div>
-            <ScannerInterface />
+            <ScannerInterface onNavigateToMap={() => setActiveTab('map')} />
           </div>
         );
       case 'analytics':

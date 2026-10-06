@@ -47,7 +47,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
 
         {/* HERO SCANNER ENGINE WORKSPACE */}
         <div id="hero-scanner" className="px-2 sm:px-4">
-          <ScannerInterface onScanComplete={(res) => console.log('Hero scan complete', res)} />
+          <ScannerInterface
+            onNavigateToMap={() => onNavigate('map')}
+            onScanComplete={(res) => console.log('Hero scan complete', res)}
+          />
         </div>
       </section>
 

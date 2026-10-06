@@ -6,9 +6,10 @@ interface ScanResultCardProps {
   result: ScanResult;
   activeObject: DetectedObject;
   onScanAnother: () => void;
+  onNavigateToMap?: () => void;
 }
 
-export const ScanResultCard: React.FC<ScanResultCardProps> = ({ result: _result, activeObject, onScanAnother }) => {
+export const ScanResultCard: React.FC<ScanResultCardProps> = ({ result: _result, activeObject, onScanAnother, onNavigateToMap }) => {
   const getCategoryColor = (cat: string) => {
     switch (cat) {
       case 'Dry / Recyclable':
@@ -116,17 +117,24 @@ export const ScanResultCard: React.FC<ScanResultCardProps> = ({ result: _result,
       <div className="grid grid-cols-2 gap-2 pt-2">
         <button
           onClick={onScanAnother}
-          className="px-4 py-2.5 bg-[#0F2E23] hover:bg-[#154233] text-white font-semibold text-xs rounded-xl flex items-center justify-center gap-2 shadow transition-all"
+          className="px-4 py-2.5 bg-[#0F2E23] hover:bg-[#154233] text-white font-semibold text-xs rounded-xl flex items-center justify-center gap-2 shadow transition-all cursor-pointer"
         >
           <RefreshCw className="w-3.5 h-3.5" /> Scan Another Item
         </button>
 
-        <a
-          href="#map"
-          className="px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-[#0F2E23] font-semibold text-xs rounded-xl border border-emerald-200 flex items-center justify-center gap-2 transition-all"
+        <button
+          onClick={() => {
+            if (onNavigateToMap) {
+              onNavigateToMap();
+            } else {
+              const mapEl = document.getElementById('map');
+              if (mapEl) mapEl.scrollIntoView({ behavior: 'smooth' });
+            }
+          }}
+          className="px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-[#0F2E23] font-semibold text-xs rounded-xl border border-emerald-200 flex items-center justify-center gap-2 transition-all cursor-pointer"
         >
           <MapPin className="w-3.5 h-3.5 text-[#10B981]" /> Find Collection Point
-        </a>
+        </button>
       </div>
     </div>
   );
