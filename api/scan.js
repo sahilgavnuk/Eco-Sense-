@@ -1,53 +1,52 @@
 // api/scan.js — Vercel Serverless Function
-// Proxies Gemini Vision API calls with automatic multi-model failover and retry on 503/429/500 errors.
+// High accuracy waste detection using Gemini 3.5 Flash & 3.6 Flash with auto-failover
 
 const CANDIDATE_MODELS = [
-  'gemini-2.5-flash',
-  'gemini-2.0-flash-lite',
-  'gemini-2.5-pro',
+  'gemini-3.5-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-3.6-flash',
+  'gemini-3.7-flash',
   'gemini-3.8-flash'
 ];
 
-const SYSTEM_PROMPT = `You are EcoSense AI, an expert waste classification system. Analyze the image and identify ALL visible waste items or objects — even if there are many.
+const SYSTEM_PROMPT = `You are EcoSense AI, an expert computer vision waste classification system.
+Your job is to accurately detect, identify, and categorize the ACTUAL waste items present in the uploaded image.
 
-For each detected object, classify it using these exact waste categories:
-- "Dry / Recyclable" — plastic bottles, cardboard, paper, glass bottles, metal cans, tins
-- "Wet / Organic" — food scraps, fruit, vegetables, plant matter, food packaging with food residue
-- "Non-Recyclable" — composite packaging, styrofoam, dirty wrappers, mixed materials, fabric
-- "E-Waste" — phones, laptops, batteries, cables, electronics, chargers, remotes
-- "Hazardous" — chemicals, paint, sharp objects, medical waste, aerosols
-- "Special Handling" — large appliances, furniture, tyres, mattresses
+Look carefully at the image:
+1. Identify the specific real item (e.g. "Coca Cola Plastic Bottle", "Crushed Cardboard Delivery Box", "Used AA Battery", "Half-eaten Apple Core", "Styrofoam Food Container", "Broken Smartphone Screen"). DO NOT guess or return generic placeholders.
+2. Accurately assign it to one of these 6 standard waste categories:
+   - "Dry / Recyclable" (clean PET bottles, HDPE jugs, clean cardboard/paper, aluminum cans, glass bottles/jars)
+   - "Wet / Organic" (food leftovers, vegetable peels, fruit scraps, coffee grounds, garden clippings)
+   - "Non-Recyclable" (soiled plastic films, composite wrappers, chip bags, multi-layer pouches, styrofoam/thermocol)
+   - "E-Waste" (phones, chargers, cables, circuit boards, batteries, electronic appliances)
+   - "Hazardous" (household chemicals, paints, motor oil, batteries, aerosol cans, syringes/medical waste)
+   - "Special Handling" (bulky furniture, tires, mattresses, construction debris)
 
-Respond ONLY with a valid JSON object in this exact structure (no markdown, no explanation):
+3. Detect the approximate bounding box percentages (x, y, w, h from 0 to 100).
+4. Provide 3 concrete, step-by-step disposal instructions.
+5. Provide a 1-2 sentence explanation of why this classification and disposal route was selected based on material properties and local municipal recycling codes.
+
+Respond ONLY with valid JSON in this exact structure without markdown backticks:
 {
   "objects": [
     {
-      "label": "Human-readable object name (be specific e.g. 'Plastic Water Bottle' not just 'Bottle')",
+      "label": "Exact Item Name",
       "category": "one of the 6 categories above",
-      "material": "specific material e.g. PET Plastic / Kraft Cardboard / Li-Ion Battery",
-      "confidence": 85,
+      "material": "Specific material (e.g. PET Plastic #1, Corrugated Cardboard, Aluminum, Li-ion)",
+      "confidence": 92,
       "condition": "Clean | Slightly Contaminated | Heavily Contaminated | Mixed-material",
       "box": { "x": 10, "y": 10, "w": 80, "h": 80 },
-      "disposalRecommendation": ["Step 1", "Step 2", "Step 3"],
-      "whyExplanation": "One sentence explaining the classification reasoning."
+      "disposalRecommendation": ["1. Step one", "2. Step two", "3. Step three"],
+      "whyExplanation": "Clear factual explanation of why this belongs here."
     }
   ],
-  "overallSummary": "Brief summary of what was scanned and the key action to take.",
+  "overallSummary": "Brief overview of what was identified and the main action.",
   "zone": "Zone 2 — Central District"
-}
-
-Rules:
-- box values are percentages (0-100) showing where in the image the object is
-- confidence is 0-100 based on certainty
-- disposalRecommendation must have 2-4 specific, actionable steps
-- Detect EVERY object in the image, even partial ones
-- If image is unclear, still return JSON with your best guess and low confidence
-- ALWAYS return at least 1 object — never return an empty objects array`;
+}`;
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export default async function handler(req, res) {
-  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -63,7 +62,7 @@ export default async function handler(req, res) {
   const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
   if (!apiKey) {
     return res.status(500).json({
-      error: 'Gemini API key not configured on server. Please add GEMINI_API_KEY in your Vercel Environment Variables.',
+      error: 'Gemini API key not configured on server. Add GEMINI_API_KEY in Vercel Environment Variables.',
     });
   }
 
@@ -74,11 +73,9 @@ export default async function handler(req, res) {
 
   let lastError = null;
 
-  // Try candidate models in order if Google encounters 503 (high demand) or 429 rate limit
   for (const model of CANDIDATE_MODELS) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-    // Up to 2 attempts per model with backoff
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
         const geminiRes = await fetch(url, {
@@ -94,9 +91,9 @@ export default async function handler(req, res) {
               },
             ],
             generationConfig: {
-              temperature: 0.2,
+              temperature: 0.1,
               topK: 32,
-              topP: 1,
+              topP: 0.95,
               maxOutputTokens: 2048,
             },
           }),
@@ -105,21 +102,19 @@ export default async function handler(req, res) {
         if (geminiRes.status === 503 || geminiRes.status === 429) {
           const errData = await geminiRes.json().catch(() => ({}));
           lastError = errData?.error?.message || `Status ${geminiRes.status}`;
-          // Wait briefly before retry/fallback
-          await wait(500 * attempt);
+          await wait(400 * attempt);
           continue;
         }
 
         if (!geminiRes.ok) {
           const errData = await geminiRes.json().catch(() => ({}));
           lastError = errData?.error?.message || geminiRes.statusText;
-          break; // Try next model in list
+          break; // Switch to next model
         }
 
         const data = await geminiRes.json();
         const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
 
-        // Parse JSON from Gemini response
         const cleaned = rawText.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
         let parsed;
         try {
@@ -129,36 +124,20 @@ export default async function handler(req, res) {
           if (match) {
             parsed = JSON.parse(match[0]);
           } else {
-            throw new Error('Could not parse model output as JSON');
+            throw new Error('Failed to parse model output as JSON');
           }
         }
 
-        return res.status(200).json(parsed);
+        if (parsed && Array.isArray(parsed.objects) && parsed.objects.length > 0) {
+          return res.status(200).json(parsed);
+        }
       } catch (err) {
         lastError = err instanceof Error ? err.message : String(err);
       }
     }
   }
 
-  // Graceful fallback response if all Google cloud models are temporarily down/busy
-  return res.status(200).json({
-    objects: [
-      {
-        label: "Recyclable / Mixed Container",
-        category: "Dry / Recyclable",
-        material: "PET Plastic / Composite Packaging",
-        confidence: 88,
-        condition: "Clean",
-        box: { x: 15, y: 15, w: 70, h: 70 },
-        disposalRecommendation: [
-          "1. Empty any liquid or organic residue",
-          "2. Rinse with cold water to avoid contamination",
-          "3. Place in the blue dry recycling bin"
-        ],
-        whyExplanation: "Item identified as packaging material. Follow standard municipal dry segregation protocol."
-      }
-    ],
-    overallSummary: "Item analyzed successfully. Google Cloud is experiencing high traffic, applied standard verified disposal protocol.",
-    zone: "Zone 2 — Central District"
+  return res.status(500).json({
+    error: `AI analysis service error: ${lastError || 'Could not classify image'}. Please try again.`
   });
 }
