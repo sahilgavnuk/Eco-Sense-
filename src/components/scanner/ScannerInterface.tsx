@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Camera, Upload, Sparkles, ShieldCheck, RefreshCw, Eye,
-  AlertCircle, X, ZoomIn,
+  AlertCircle, X, ZoomIn
 } from 'lucide-react';
 import type { ScanResult } from '../../types';
 import ScanResultCard from './ScanResultCard';
@@ -29,6 +29,7 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
   const [cameraStream, setCameraStream]       = useState<MediaStream | null>(null);
 
   const fileInputRef   = useRef<HTMLInputElement | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const videoRef       = useRef<HTMLVideoElement | null>(null);
 
   // ── Sync camera stream to video element ───────────────────────────────────
@@ -81,8 +82,8 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
     }
   }, [telemetryOptIn, onScanComplete]);
 
-  // ── File / camera-capture upload ───────────────────────────────────────────
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // ── File upload / camera photo taken ────────────────────────────────────────
+  const handleFilePicked = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     stopCamera();
@@ -97,19 +98,20 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
     e.target.value = '';
   };
 
-  // ── Camera ────────────────────────────────────────────────────────────────
-  const openCamera = async () => {
+  // ── Live Camera Mode ───────────────────────────────────────────────────────
+  const openLiveCamera = async () => {
     try {
       setCurrentResult(null);
       setScanError(null);
+      setActiveImageUrl(null);
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment' },
       });
       setCameraStream(stream);
       setCameraOpen(true);
-      setActiveImageUrl(null);
     } catch {
-      alert('Camera access denied. Please upload an image instead.');
+      // If live WebRTC camera is blocked (permissions or browser), fall back to native device camera photo input
+      cameraInputRef.current?.click();
     }
   };
 
@@ -119,7 +121,7 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
     setCameraOpen(false);
   };
 
-  const captureAndScan = () => {
+  const capturePhotoFromLiveCamera = () => {
     const video = videoRef.current;
     if (!video) return;
     const canvas = document.createElement('canvas');
@@ -132,20 +134,18 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
     runScan(url);
   };
 
-  const scanAgain = () => {
+  const resetForRescan = () => {
     setCurrentResult(null);
     setScanError(null);
     setActiveImageUrl(null);
-    fileInputRef.current?.click();
+    stopCamera();
   };
 
   const activeObjects = currentResult?.objects ?? [];
   const selectedObject = activeObjects.find((o) => o.id === selectedObjectId) ?? activeObjects[0];
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="w-full max-w-5xl mx-auto space-y-5">
-
       {/* ── Header ────────────────────────────────────────────────────────── */}
       <div className="bg-[#0F2E23] text-white p-5 sm:p-6 rounded-2xl shadow-xl border border-[#154233] relative overflow-hidden">
         <div className="absolute -right-10 -bottom-10 w-48 h-48 bg-[#10B981]/20 rounded-full blur-3xl pointer-events-none" />
@@ -157,14 +157,13 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
             </div>
             <h2 className="text-xl sm:text-2xl font-bold tracking-tight">Point. Scan. Understand.</h2>
             <p className="text-emerald-100/70 text-sm mt-1">
-              Tap <strong>Scan Waste</strong> — your camera opens instantly. Gemini AI identifies every object and gives accurate disposal guidance.
+              Choose <strong>Open Camera</strong> to snap live, or <strong>Upload Photo</strong> from your device to analyze waste and get certified disposal protocols.
             </p>
           </div>
 
-          {/* Model status pill */}
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border shrink-0 bg-emerald-500/20 border-emerald-400/30 text-emerald-200">
             <Sparkles className="w-3.5 h-3.5 text-[#34D399]" />
-            Gemini Vision AI
+            AI Scanner Ready
           </div>
         </div>
       </div>
@@ -178,32 +177,46 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
           {/* Viewport */}
           <div className="relative aspect-[4/3] bg-gray-900 flex items-center justify-center overflow-hidden">
 
-            {/* Camera live feed */}
+            {/* Live Camera Feed */}
             {cameraOpen && (
               <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
             )}
 
-            {/* Captured / uploaded image */}
+            {/* Captured or Uploaded photo */}
             {!cameraOpen && activeImageUrl && (
               <img src={activeImageUrl} alt="Scan target" className="w-full h-full object-cover" />
             )}
 
-            {/* Empty state — big 1-click button */}
+            {/* Empty state — Prominent Dual Action Buttons */}
             {!cameraOpen && !activeImageUrl && !isScanning && (
-              <div className="flex flex-col items-center gap-4 text-center px-6">
-                <div className="w-20 h-20 rounded-full bg-[#10B981]/20 border-2 border-[#10B981]/40 flex items-center justify-center">
+              <div className="flex flex-col items-center gap-4 text-center px-6 py-8">
+                <div className="w-20 h-20 rounded-full bg-[#10B981]/20 border-2 border-[#10B981]/40 flex items-center justify-center shadow-lg">
                   <ZoomIn className="w-9 h-9 text-[#10B981]" />
                 </div>
-                <div>
-                  <p className="text-white font-semibold text-lg">Ready to scan</p>
-                  <p className="text-white/50 text-sm mt-1">
-                    Use the buttons below to start scanning
+                <div className="space-y-1">
+                  <p className="text-white font-bold text-lg">Ready to scan waste</p>
+                  <p className="text-white/60 text-xs max-w-sm">
+                    Open your camera to snap a photo or select an existing image from your phone or computer.
                   </p>
+                </div>
+                <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                  <button
+                    onClick={openLiveCamera}
+                    className="px-5 py-3 rounded-xl bg-[#10B981] hover:bg-[#059669] text-[#0F2E23] font-black text-xs flex items-center gap-2 shadow-lg transform hover:scale-105 transition-all cursor-pointer"
+                  >
+                    <Camera className="w-4 h-4" /> Open Camera
+                  </button>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-5 py-3 rounded-xl bg-white/15 hover:bg-white/25 text-white font-bold text-xs flex items-center gap-2 border border-white/20 transition-all cursor-pointer"
+                  >
+                    <Upload className="w-4 h-4" /> Choose from Gallery
+                  </button>
                 </div>
               </div>
             )}
 
-            {/* Scanning laser animation */}
+            {/* Scanning Laser Animation */}
             {isScanning && (
               <div className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-[#10B981] to-transparent shadow-[0_0_20px_#10B981] animate-scan-laser z-20">
                 <div className="absolute left-1/2 -top-6 -translate-x-1/2 px-3 py-1 bg-[#0F2E23]/90 backdrop-blur text-emerald-300 text-xs font-mono rounded-full border border-emerald-500/40 whitespace-nowrap shadow-md">
@@ -212,7 +225,7 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
               </div>
             )}
 
-            {/* Bounding boxes */}
+            {/* Bounding boxes overlay */}
             {!isScanning && currentResult && (
               <div className="absolute inset-0 pointer-events-none">
                 {currentResult.objects.map((obj) => {
@@ -228,12 +241,10 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
                           : 'border-white/60 bg-black/20 hover:border-[#10B981]/70'
                       }`}
                     >
-                      {/* Corner marks */}
                       <div className="absolute -top-1.5 -left-1.5 w-3 h-3 border-t-2 border-l-2 border-[#10B981]" />
                       <div className="absolute -top-1.5 -right-1.5 w-3 h-3 border-t-2 border-r-2 border-[#10B981]" />
                       <div className="absolute -bottom-1.5 -left-1.5 w-3 h-3 border-b-2 border-l-2 border-[#10B981]" />
                       <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 border-b-2 border-r-2 border-[#10B981]" />
-                      {/* Label */}
                       <div className="absolute -top-8 left-0 flex items-center gap-1.5 px-2.5 py-1 bg-[#0F2E23]/90 backdrop-blur text-white text-xs font-semibold rounded-md border border-[#10B981]/40 shadow-lg whitespace-nowrap">
                         <span>{obj.label}</span>
                         <span className="text-[#34D399] font-mono text-[11px]">{obj.confidence}%</span>
@@ -244,19 +255,20 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
               </div>
             )}
 
-            {/* Camera capture button */}
+            {/* Live Camera Viewfinder Shutter Button */}
             {cameraOpen && !isScanning && (
               <div className="absolute bottom-6 inset-x-0 flex items-center justify-center gap-4 z-30">
                 <button
-                  onClick={captureAndScan}
-                  className="px-6 py-3 rounded-full bg-[#10B981] hover:bg-[#059669] text-white font-bold shadow-2xl flex items-center gap-2 transform hover:scale-105 transition-all"
+                  onClick={capturePhotoFromLiveCamera}
+                  className="px-6 py-3.5 rounded-full bg-[#10B981] hover:bg-[#059669] text-[#0F2E23] font-black shadow-2xl flex items-center gap-2 transform hover:scale-105 transition-all cursor-pointer text-sm"
                 >
                   <Sparkles className="w-5 h-5" />
-                  Capture & Scan
+                  Take Photo & Analyze
                 </button>
                 <button
                   onClick={stopCamera}
-                  className="w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center"
+                  className="w-11 h-11 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center cursor-pointer transition-all shadow-lg"
+                  title="Close camera"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -264,69 +276,75 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
             )}
           </div>
 
-          {/* ── Action buttons below viewport ────────────────────────────── */}
+          {/* ── Action Buttons Control Strip ──────────────────────────────── */}
           <div className="p-4 bg-gray-50 border-t border-gray-100 space-y-3">
-
-            {/* PRIMARY: 1-click Scan button */}
-            <div className="flex gap-3">
-              {/* On mobile: capture="environment" opens camera directly in 1 tap */}
+            <div className="flex flex-wrap sm:flex-nowrap gap-2.5">
+              {/* Button 1: Camera button (explicitly opens camera view) */}
               <button
-                onClick={() => fileInputRef.current?.click()}
+                onClick={cameraOpen ? stopCamera : openLiveCamera}
                 disabled={isScanning}
-                className="flex-1 py-3 rounded-xl bg-[#0F2E23] hover:bg-[#154233] disabled:opacity-50 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-md transition-all"
-              >
-                <Upload className="w-4 h-4" />
-                {isScanning ? 'Scanning…' : 'Scan Waste'}
-              </button>
-
-              {/* Live camera (desktop) */}
-              <button
-                onClick={cameraOpen ? stopCamera : openCamera}
-                disabled={isScanning}
-                className={`px-4 py-3 rounded-xl font-semibold text-sm flex items-center gap-2 transition-all shadow-md disabled:opacity-50 ${
+                className={`flex-1 py-3 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer disabled:opacity-50 ${
                   cameraOpen
                     ? 'bg-amber-500 hover:bg-amber-600 text-white'
-                    : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-300'
+                    : 'bg-[#10B981] hover:bg-[#059669] text-[#0F2E23]'
                 }`}
               >
                 <Camera className="w-4 h-4" />
-                {cameraOpen ? 'Close' : 'Camera'}
+                {cameraOpen ? 'Close Camera' : 'Open Camera'}
               </button>
 
+              {/* Button 2: Upload photo file picker */}
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isScanning}
+                className="flex-1 py-3 px-4 rounded-xl bg-white hover:bg-gray-100 text-gray-800 font-bold text-xs sm:text-sm border border-gray-200 flex items-center justify-center gap-2 transition-all shadow-2xs cursor-pointer disabled:opacity-50"
+              >
+                <Upload className="w-4 h-4 text-blue-600" />
+                Upload Photo
+              </button>
+
+              {/* Button 3: Rescan reset button (visible when a result is loaded) */}
               {currentResult && (
                 <button
-                  onClick={scanAgain}
+                  onClick={resetForRescan}
                   disabled={isScanning}
-                  className="px-4 py-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-sm flex items-center gap-2 transition-all disabled:opacity-50"
+                  className="py-3 px-4 rounded-xl bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
                 >
                   <RefreshCw className="w-4 h-4" />
-                  Rescan
+                  New Scan
                 </button>
               )}
             </div>
 
-            {/* Telemetry */}
-            <div className="flex items-center justify-between text-xs text-gray-500">
-              <label className="flex items-center gap-2 cursor-pointer">
+            {/* Telemetry settings */}
+            <div className="flex items-center justify-between text-xs text-gray-500 pt-1">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={telemetryOptIn}
                   onChange={(e) => setTelemetryOptIn(e.target.checked)}
-                  className="w-4 h-4 rounded accent-[#10B981]"
+                  className="w-4 h-4 rounded accent-[#10B981] cursor-pointer"
                 />
                 Contribute anonymized scan data to Community Intelligence
               </label>
-              <span className="inline-flex items-center gap-1 text-[#154233] font-medium">
+              <span className="inline-flex items-center gap-1 text-[#154233] font-medium shrink-0">
                 <ShieldCheck className="w-4 h-4 text-[#10B981]" /> Privacy Secured
               </span>
             </div>
           </div>
 
-          {/* Hidden file input — capture="environment" opens camera on mobile */}
+          {/* Hidden inputs: One for regular gallery files, one for mobile camera direct capture */}
           <input
             type="file"
             ref={fileInputRef}
-            onChange={handleFile}
+            onChange={handleFilePicked}
+            accept="image/*"
+            className="hidden"
+          />
+          <input
+            type="file"
+            ref={cameraInputRef}
+            onChange={handleFilePicked}
             accept="image/*"
             capture="environment"
             className="hidden"
@@ -343,7 +361,7 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
                 <RefreshCw className="w-6 h-6" />
               </div>
               <div>
-                <h4 className="text-lg font-bold text-gray-900">AI Analyzing…</h4>
+                <h4 className="text-lg font-bold text-gray-900">Gemini AI Analyzing Waste…</h4>
                 <p className="text-sm text-gray-500 mt-1">{scanStepText}</p>
               </div>
               <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
@@ -352,11 +370,14 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
             </div>
           )}
 
-          {/* Error */}
+          {/* Error display */}
           {scanError && !isScanning && (
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3 text-sm text-amber-800">
               <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-amber-500" />
-              <span>{scanError}</span>
+              <div className="space-y-1">
+                <span className="font-bold">Scan Notice:</span>
+                <p>{scanError}</p>
+              </div>
             </div>
           )}
 
@@ -365,14 +386,14 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
             <div className="bg-[#0F2E23]/5 p-3 rounded-xl border border-[#0F2E23]/10">
               <div className="text-xs font-bold uppercase text-[#0F2E23] mb-2 flex items-center justify-between">
                 <span>{currentResult.objects.length} Objects Detected</span>
-                <span className="text-gray-500 font-normal">Tap to switch</span>
+                <span className="text-gray-500 font-normal">Tap to inspect</span>
               </div>
               <div className="flex flex-wrap gap-2">
                 {currentResult.objects.map((obj) => (
                   <button
                     key={obj.id}
                     onClick={() => setSelectedId(obj.id)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                       selectedObjectId === obj.id
                         ? 'bg-[#0F2E23] text-white shadow'
                         : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
@@ -391,7 +412,7 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
             <ScanResultCard
               result={currentResult}
               activeObject={selectedObject}
-              onScanAnother={scanAgain}
+              onScanAnother={resetForRescan}
               onFindCollectionPoint={() => onNavigate ? onNavigate('map') : undefined}
             />
           )}
@@ -402,21 +423,30 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
               <div className="w-14 h-14 mx-auto rounded-full bg-emerald-50 flex items-center justify-center text-[#10B981]">
                 <Eye className="w-7 h-7" />
               </div>
-              <div>
+              <div className="space-y-1">
                 <h3 className="font-bold text-gray-900 text-lg">
                   Ready to Scan
                 </h3>
-                <p className="text-sm text-gray-500 mt-1">
-                  Tap "Scan Waste" — snap or upload any photo and Gemini AI will identify every item with full disposal details!
+                <p className="text-sm text-gray-500">
+                  Tap <strong>"Open Camera"</strong> to view your live camera, or <strong>"Upload Photo"</strong> from your phone or PC.
                 </p>
               </div>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="mx-auto flex items-center gap-2 px-6 py-3 bg-[#0F2E23] hover:bg-[#154233] text-white font-bold rounded-xl shadow transition-all"
-              >
-                <Upload className="w-4 h-4" />
-                Scan Waste Now
-              </button>
+              <div className="flex justify-center gap-2 pt-1">
+                <button
+                  onClick={openLiveCamera}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-[#10B981] hover:bg-[#059669] text-[#0F2E23] font-black rounded-xl shadow transition-all cursor-pointer text-xs"
+                >
+                  <Camera className="w-4 h-4" />
+                  Open Camera
+                </button>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold rounded-xl transition-all cursor-pointer text-xs"
+                >
+                  <Upload className="w-4 h-4 text-blue-600" />
+                  Upload Photo
+                </button>
+              </div>
             </div>
           )}
         </div>
