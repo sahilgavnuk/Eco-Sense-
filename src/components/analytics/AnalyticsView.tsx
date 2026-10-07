@@ -30,8 +30,22 @@ export const AnalyticsView: React.FC = () => {
           </div>
 
           <button
-            onClick={() => alert('Exporting EcoSense Waste Dataset CSV...')}
-            className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-semibold text-xs rounded-xl border border-white/15 flex items-center gap-2 transition-all shrink-0"
+            onClick={() => {
+              const headers = 'Zone,Total Scans,Segregation Rate,Collection Reliability,Dominant Waste,Active Issues\n';
+              const rows = MOCK_ZONE_METRICS.map(
+                (z) => `"${z.zoneName}",${z.scansThisMonth},${z.segregationRate}%,${z.collectionReliability}%,"${z.dominantCategory}",${z.activeIssues}`
+              ).join('\n');
+              const blob = new Blob([headers + rows], { type: 'text/csv;charset=utf-8;' });
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.href = url;
+              link.setAttribute('download', `ecosense_waste_intelligence_${new Date().toISOString().slice(0, 10)}.csv`);
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              URL.revokeObjectURL(url);
+            }}
+            className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-semibold text-xs rounded-xl border border-white/15 flex items-center gap-2 transition-all shrink-0 cursor-pointer shadow-xs"
           >
             <Download className="w-4 h-4 text-[#10B981]" /> Export Dataset (CSV)
           </button>

@@ -15,18 +15,25 @@ import DashboardView from './components/dashboard/DashboardView';
 export function App() {
   const [activeTab, setActiveTab] = useState<string>('home');
 
+  const handleNavigate = (tab: string) => {
+    setActiveTab(tab);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'home':
-        return <LandingPage onNavigate={(tab) => setActiveTab(tab)} />;
+        return <LandingPage onNavigate={handleNavigate} />;
       case 'scanner':
         return (
-          <div className="pt-4 space-y-6">
-            <div className="text-center space-y-2 max-w-xl mx-auto">
+          <div className="pt-2 space-y-6">
+            <div className="text-center space-y-1.5 max-w-xl mx-auto">
               <h1 className="text-3xl font-extrabold text-[#0F2E23]">AI Waste Intelligence Scanner</h1>
-              <p className="text-xs text-gray-600">Scan waste items, analyze material composition, and discover disposal protocols.</p>
+              <p className="text-xs text-gray-600">
+                Point your camera or upload any waste item to get instant AI material analysis and certified disposal guidance.
+              </p>
             </div>
-            <ScannerInterface />
+            <ScannerInterface onNavigate={handleNavigate} />
           </div>
         );
       case 'analytics':
@@ -38,20 +45,20 @@ export function App() {
       case 'copilot':
         return <EcoCopilotChat />;
       case 'report':
-        return <ReportForm />;
+        return <ReportForm onNavigateToMap={() => handleNavigate('map')} />;
       case 'challenges':
         return <ChallengesView />;
       case 'dashboard':
-        return <DashboardView onNavigateToScanner={() => setActiveTab('scanner')} />;
+        return <DashboardView onNavigateToScanner={() => handleNavigate('scanner')} />;
       default:
-        return <LandingPage onNavigate={(tab) => setActiveTab(tab)} />;
+        return <LandingPage onNavigate={handleNavigate} />;
     }
   };
 
   return (
     <div className="min-h-screen bg-[#FBFBFA] text-[#111827] flex flex-col font-['Plus_Jakarta_Sans',sans-serif]">
       {/* Sticky Header Navbar */}
-      <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Navbar activeTab={activeTab} setActiveTab={handleNavigate} />
 
       {/* Main Viewport Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -59,10 +66,10 @@ export function App() {
       </main>
 
       {/* Footer */}
-      <Footer />
+      <Footer onNavigate={handleNavigate} />
 
       {/* Mobile Bottom Navigation */}
-      <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} />
+      <MobileNav activeTab={activeTab} setActiveTab={handleNavigate} />
     </div>
   );
 }

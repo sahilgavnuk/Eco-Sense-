@@ -10,11 +10,13 @@ import { scanDataUrl } from './wasteAI';
 interface ScannerInterfaceProps {
   onScanComplete?: (result: ScanResult) => void;
   compactMode?: boolean;
+  onNavigate?: (tab: string) => void;
 }
 
 export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
   onScanComplete,
   compactMode: _compactMode = false,
+  onNavigate,
 }) => {
   const [isScanning, setIsScanning]           = useState(false);
   const [scanStepText, setScanStepText]       = useState('');
@@ -390,6 +392,7 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
               result={currentResult}
               activeObject={selectedObject}
               onScanAnother={scanAgain}
+              onFindCollectionPoint={() => onNavigate ? onNavigate('map') : undefined}
             />
           )}
 
