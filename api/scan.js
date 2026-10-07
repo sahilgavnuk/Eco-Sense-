@@ -2,7 +2,7 @@
 // Proxies Gemini Vision API calls server-side so the API key is never exposed to the browser.
 
 const GEMINI_API_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent';
 
 const SYSTEM_PROMPT = `You are EcoSense AI, an expert waste classification system. Analyze the image and identify ALL visible waste items or objects — even if there are many.
 
