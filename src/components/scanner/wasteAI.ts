@@ -1,232 +1,423 @@
 /**
- * wasteAI.ts — Real waste analysis using Google Gemini Vision API
- * Sends the image to Gemini and gets structured waste classification back.
+ * wasteAI.ts — Client-side waste analysis using TensorFlow.js COCO-SSD
+ * Runs entirely in the browser — no API key, no server, works on Vercel.
  */
 
+import * as cocoSsd from '@tensorflow-models/coco-ssd';
+import '@tensorflow/tfjs';
 import type { ScanResult, DetectedObject, WasteCategory, ContaminationLevel } from '../../types';
 
-const GEMINI_API_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+// ─── Singleton model cache ────────────────────────────────────────────────────
 
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string;
+let modelPromise: Promise<cocoSsd.ObjectDetection> | null = null;
 
-// ─── Prompt ──────────────────────────────────────────────────────────────────
-
-const SYSTEM_PROMPT = `You are EcoSense AI, an expert waste classification system. Analyze the image and identify all visible waste items or objects.
-
-For each detected object, classify it using these exact waste categories:
-- "Dry / Recyclable" — plastic bottles, cardboard, paper, glass bottles, metal cans
-- "Wet / Organic" — food scraps, fruit, vegetables, plant matter
-- "Non-Recyclable" — composite packaging, styrofoam, dirty wrappers, mixed materials  
-- "E-Waste" — phones, laptops, batteries, cables, electronics
-- "Hazardous" — chemicals, paint, sharp objects, medical waste
-- "Special Handling" — large appliances, furniture, tyres
-
-Respond ONLY with a valid JSON object in this exact structure (no markdown, no explanation):
-{
-  "objects": [
-    {
-      "label": "Human-readable object name",
-      "category": "one of the 6 categories above",
-      "material": "specific material e.g. PET Plastic / Kraft Cardboard / Li-Ion Battery",
-      "confidence": 85,
-      "condition": "Clean | Slightly Contaminated | Heavily Contaminated | Mixed-material",
-      "box": { "x": 10, "y": 10, "w": 80, "h": 80 },
-      "disposalRecommendation": ["Step 1", "Step 2", "Step 3"],
-      "whyExplanation": "One sentence explaining the classification reasoning."
-    }
-  ],
-  "overallSummary": "Brief summary of what was scanned and key action.",
-  "zone": "Zone 2 — Central District"
-}
-
-Important rules:
-- box values are percentages (0-100) estimating where the object is in the image
-- confidence is 0-100 based on how certain you are
-- disposalRecommendation must have 2-4 actionable steps
-- If image is unclear or no waste found, still return the JSON with a single object with label "No waste detected"
-- Detect multiple objects if present, each as a separate entry`;
-
-// ─── Convert image to base64 ──────────────────────────────────────────────────
-
-function imageElementToBase64(
-  el: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement
-): { base64: string; mimeType: string } {
-  const canvas = document.createElement('canvas');
-
-  if (el instanceof HTMLVideoElement) {
-    canvas.width = el.videoWidth || 640;
-    canvas.height = el.videoHeight || 480;
-    canvas.getContext('2d')?.drawImage(el, 0, 0);
-  } else if (el instanceof HTMLImageElement) {
-    canvas.width = el.naturalWidth || el.width || 800;
-    canvas.height = el.naturalHeight || el.height || 600;
-    canvas.getContext('2d')?.drawImage(el, 0, 0);
-  } else {
-    canvas.width = el.width;
-    canvas.height = el.height;
-    canvas.getContext('2d')?.drawImage(el, 0, 0);
+function getModel(): Promise<cocoSsd.ObjectDetection> {
+  if (!modelPromise) {
+    modelPromise = cocoSsd.load({ base: 'mobilenet_v2' });
   }
-
-  const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-  const base64 = dataUrl.split(',')[1];
-  return { base64, mimeType: 'image/jpeg' };
+  return modelPromise;
 }
 
-// Also supports raw dataURL string (from file upload)
-function dataUrlToBase64(dataUrl: string): { base64: string; mimeType: string } {
-  const [header, base64] = dataUrl.split(',');
-  const mimeType = header.match(/:(.*?);/)?.[1] ?? 'image/jpeg';
-  return { base64, mimeType };
+// ─── COCO label → Waste category mapping ─────────────────────────────────────
+
+interface WasteProfile {
+  category: WasteCategory;
+  material: string;
+  condition: ContaminationLevel;
+  disposal: string[];
+  why: string;
 }
 
-// ─── Call Gemini API ──────────────────────────────────────────────────────────
+const LABEL_MAP: Record<string, WasteProfile> = {
+  // ── Dry / Recyclable ──────────────────────────────────────────────────
+  bottle: {
+    category: 'Dry / Recyclable',
+    material: 'PET Plastic / Glass',
+    condition: 'Clean',
+    disposal: [
+      'Rinse the bottle to remove residue',
+      'Remove caps and labels if possible',
+      'Place in the blue recycling bin',
+    ],
+    why: 'Bottles are typically made of recyclable PET plastic or glass.',
+  },
+  'wine glass': {
+    category: 'Dry / Recyclable',
+    material: 'Glass',
+    condition: 'Clean',
+    disposal: ['Wrap in newspaper to prevent breakage', 'Place in glass recycling bin'],
+    why: 'Glass is 100% recyclable without quality loss.',
+  },
+  cup: {
+    category: 'Non-Recyclable',
+    material: 'Paper + Plastic Lining',
+    condition: 'Slightly Contaminated',
+    disposal: [
+      'Disposable cups have a plastic lining — do not recycle',
+      'Dispose in general waste bin',
+    ],
+    why: 'Most disposable cups have a plastic lining making them non-recyclable.',
+  },
+  book: {
+    category: 'Dry / Recyclable',
+    material: 'Paper / Cardboard',
+    condition: 'Clean',
+    disposal: ['Donate if in good condition', 'Otherwise place in paper recycling bin'],
+    why: 'Paper and cardboard are among the most commonly recycled materials.',
+  },
+  'cell phone': {
+    category: 'E-Waste',
+    material: 'Mixed Electronics (Li-Ion, Glass, Aluminium)',
+    condition: 'Mixed-material',
+    disposal: [
+      'Do NOT throw in regular bin',
+      'Remove SIM card and wipe personal data',
+      'Drop at an authorized e-waste collection centre',
+    ],
+    why: 'Phones contain toxic materials like lithium and heavy metals that require special handling.',
+  },
+  laptop: {
+    category: 'E-Waste',
+    material: 'Mixed Electronics (Li-Ion, PCB, Aluminium)',
+    condition: 'Mixed-material',
+    disposal: [
+      'Back up and wipe all data',
+      'Remove battery if possible',
+      'Drop at certified e-waste recycler',
+    ],
+    why: 'Laptops contain hazardous materials and valuable recoverable metals.',
+  },
+  keyboard: {
+    category: 'E-Waste',
+    material: 'ABS Plastic + PCB',
+    condition: 'Mixed-material',
+    disposal: ['Drop at an e-waste collection point', 'Check manufacturer take-back programs'],
+    why: 'Electronics contain heavy metals not suitable for landfill.',
+  },
+  mouse: {
+    category: 'E-Waste',
+    material: 'ABS Plastic + PCB',
+    condition: 'Mixed-material',
+    disposal: ['Drop at an e-waste collection point'],
+    why: 'Contains circuit boards with hazardous materials.',
+  },
+  remote: {
+    category: 'E-Waste',
+    material: 'ABS Plastic + Batteries',
+    condition: 'Mixed-material',
+    disposal: ['Remove batteries and recycle separately', 'Take plastic casing to e-waste point'],
+    why: 'Batteries require separate hazardous waste disposal.',
+  },
+  tv: {
+    category: 'E-Waste',
+    material: 'Mixed Electronics (LCD, PCB, Metals)',
+    condition: 'Mixed-material',
+    disposal: [
+      'Do NOT place at kerbside',
+      'Contact municipal bulk waste or e-waste pickup',
+      'Check retailer take-back schemes',
+    ],
+    why: 'TVs contain hazardous materials including lead and mercury in older models.',
+  },
+  microwave: {
+    category: 'Special Handling',
+    material: 'Mixed Metal + Electronics',
+    condition: 'Mixed-material',
+    disposal: [
+      'Contact municipal large-item collection',
+      'Many retailers offer appliance take-back',
+    ],
+    why: 'Large appliances require special collection due to size and material complexity.',
+  },
+  oven: {
+    category: 'Special Handling',
+    material: 'Steel + Electronics',
+    condition: 'Mixed-material',
+    disposal: ['Contact municipal bulk waste collection', 'Scrap metal dealers may accept it'],
+    why: 'Large appliances need special disposal routes.',
+  },
+  refrigerator: {
+    category: 'Special Handling',
+    material: 'Steel + Refrigerant Gases',
+    condition: 'Mixed-material',
+    disposal: [
+      'Do NOT puncture — refrigerant gases are harmful',
+      'Contact licensed appliance disposal service',
+    ],
+    why: 'Refrigerants are potent greenhouse gases requiring certified removal.',
+  },
+  chair: {
+    category: 'Special Handling',
+    material: 'Wood / Fabric / Metal',
+    condition: 'Clean',
+    disposal: [
+      'Donate if in good condition',
+      'Contact bulk waste collection for pick-up',
+      'Disassemble and sort materials for recycling',
+    ],
+    why: 'Furniture is too large for regular bins and materials need sorting.',
+  },
+  couch: {
+    category: 'Special Handling',
+    material: 'Fabric + Foam + Wood Frame',
+    condition: 'Clean',
+    disposal: ['Donate if usable', 'Book a bulk-waste collection with your municipality'],
+    why: 'Sofas are bulky items that need separate large-item collection.',
+  },
+  bed: {
+    category: 'Special Handling',
+    material: 'Fabric + Metal Springs + Wood',
+    condition: 'Clean',
+    disposal: [
+      'Some mattress recyclers accept beds',
+      'Book a bulk-waste collection service',
+    ],
+    why: 'Beds contain mixed materials requiring specialized recycling.',
+  },
+  // ── Wet / Organic ─────────────────────────────────────────────────────
+  banana: {
+    category: 'Wet / Organic',
+    material: 'Fruit / Organic Matter',
+    condition: 'Clean',
+    disposal: ['Place in green composting bin', 'Can be home-composted'],
+    why: 'Fruit peels are biodegradable organic waste.',
+  },
+  apple: {
+    category: 'Wet / Organic',
+    material: 'Fruit / Organic Matter',
+    condition: 'Clean',
+    disposal: ['Place in green composting bin', 'Can be home-composted'],
+    why: 'Fruit is biodegradable and ideal for composting.',
+  },
+  orange: {
+    category: 'Wet / Organic',
+    material: 'Fruit / Organic Matter',
+    condition: 'Clean',
+    disposal: ['Place in green composting bin'],
+    why: 'Citrus peels are organic matter suitable for composting.',
+  },
+  broccoli: {
+    category: 'Wet / Organic',
+    material: 'Vegetable / Organic Matter',
+    condition: 'Clean',
+    disposal: ['Place in green composting bin'],
+    why: 'Vegetables are biodegradable organic waste.',
+  },
+  carrot: {
+    category: 'Wet / Organic',
+    material: 'Vegetable / Organic Matter',
+    condition: 'Clean',
+    disposal: ['Place in green composting bin'],
+    why: 'Root vegetables compost efficiently.',
+  },
+  sandwich: {
+    category: 'Wet / Organic',
+    material: 'Food Waste',
+    condition: 'Slightly Contaminated',
+    disposal: ['Place in food-waste / green bin', 'Avoid contaminating dry recyclables with food'],
+    why: 'Food waste is organic and should be composted or sent to biogas plants.',
+  },
+  pizza: {
+    category: 'Wet / Organic',
+    material: 'Food Waste',
+    condition: 'Slightly Contaminated',
+    disposal: ['Place in food-waste bin', 'Greasy pizza boxes go in general waste, not recycling'],
+    why: 'Food waste is organic; greasy boxes contaminate paper recycling.',
+  },
+  cake: {
+    category: 'Wet / Organic',
+    material: 'Food Waste',
+    condition: 'Clean',
+    disposal: ['Place in food-waste / green composting bin'],
+    why: 'Food scraps are organic waste best composted.',
+  },
+  // ── Hazardous ─────────────────────────────────────────────────────────
+  scissors: {
+    category: 'Hazardous',
+    material: 'Stainless Steel',
+    condition: 'Clean',
+    disposal: [
+      'Wrap in thick tape or cardboard to cover blades',
+      'Take to a metal recycling facility',
+    ],
+    why: 'Sharp objects pose injury risk to waste handlers.',
+  },
+  knife: {
+    category: 'Hazardous',
+    material: 'Steel',
+    condition: 'Clean',
+    disposal: [
+      'Wrap blade securely in cardboard and tape',
+      'Take to a metal recycler or knife amnesty bin',
+    ],
+    why: 'Bladed items are hazardous and require safe packaging.',
+  },
+  // ── Default / Non-Recyclable ───────────────────────────────────────────
+  default: {
+    category: 'Non-Recyclable',
+    material: 'Mixed / Unknown Material',
+    condition: 'Unknown',
+    disposal: [
+      'Identify the material type before disposal',
+      'When in doubt, place in general waste bin',
+    ],
+    why: 'Object could not be matched to a specific waste category.',
+  },
+};
 
-async function callGeminiVision(base64: string, mimeType: string): Promise<string> {
-  const response = await fetch(`${GEMINI_API_URL}?key=${API_KEY}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [
-        {
-          parts: [
-            { text: SYSTEM_PROMPT },
-            {
-              inlineData: {
-                mimeType,
-                data: base64,
-              },
-            },
-          ],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.2,
-        topK: 32,
-        topP: 1,
-        maxOutputTokens: 2048,
-      },
-    }),
+function getProfile(label: string): WasteProfile {
+  const key = label.toLowerCase();
+  return LABEL_MAP[key] ?? LABEL_MAP['default'];
+}
+
+// ─── Convert image source to HTMLImageElement ─────────────────────────────────
+
+function dataUrlToImageElement(dataUrl: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = dataUrl;
   });
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(
-      `Gemini API error ${response.status}: ${(err as { error?: { message?: string } }).error?.message ?? response.statusText}`
-    );
-  }
-
-  const data = await response.json() as {
-    candidates?: Array<{
-      content?: { parts?: Array<{ text?: string }> };
-    }>;
-  };
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-  return text;
 }
 
-// ─── Parse Gemini Response ────────────────────────────────────────────────────
-
-interface GeminiObject {
-  label?: string;
-  category?: WasteCategory;
-  material?: string;
-  confidence?: number;
-  condition?: ContaminationLevel;
-  box?: { x?: number; y?: number; w?: number; h?: number };
-  disposalRecommendation?: string[];
-  whyExplanation?: string;
-}
-
-interface GeminiResponse {
-  objects?: GeminiObject[];
-  overallSummary?: string;
-  zone?: string;
-}
-
-function parseGeminiResponse(rawText: string): GeminiResponse {
-  // Strip markdown code fences if present
-  const cleaned = rawText
-    .replace(/```json\s*/gi, '')
-    .replace(/```\s*/gi, '')
-    .trim();
-
-  try {
-    return JSON.parse(cleaned) as GeminiResponse;
-  } catch {
-    // Try to extract JSON from within the text
-    const match = cleaned.match(/\{[\s\S]*\}/);
-    if (match) {
-      return JSON.parse(match[0]) as GeminiResponse;
-    }
-    throw new Error('Could not parse Gemini response as JSON');
-  }
-}
-
-// ─── Main Scan Function ───────────────────────────────────────────────────────
-
-export async function scanImageElement(
-  imageEl: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement,
-  telemetryOptIn: boolean,
-  zone: string
-): Promise<ScanResult> {
-  const { base64, mimeType } = imageElementToBase64(imageEl);
-  return runScan(base64, mimeType, '', telemetryOptIn, zone);
-}
+// ─── Main exported scan functions ─────────────────────────────────────────────
 
 export async function scanDataUrl(
   dataUrl: string,
   telemetryOptIn: boolean,
   zone: string
 ): Promise<ScanResult> {
-  const { base64, mimeType } = dataUrlToBase64(dataUrl);
-  return runScan(base64, mimeType, dataUrl, telemetryOptIn, zone);
-}
+  const [model, imgEl] = await Promise.all([getModel(), dataUrlToImageElement(dataUrl)]);
 
-async function runScan(
-  base64: string,
-  mimeType: string,
-  imageUrl: string,
-  telemetryOptIn: boolean,
-  zone: string
-): Promise<ScanResult> {
-  const rawText = await callGeminiVision(base64, mimeType);
-  const parsed = parseGeminiResponse(rawText);
+  const predictions = await model.detect(imgEl);
 
-  const rawObjects: GeminiObject[] = parsed.objects ?? [];
+  // Map raw detections → DetectedObject
+  const objects: DetectedObject[] = predictions.map((pred, idx) => {
+    const [bx, by, bw, bh] = pred.bbox; // pixel values
+    const imgW = imgEl.naturalWidth || imgEl.width || 640;
+    const imgH = imgEl.naturalHeight || imgEl.height || 480;
 
-  const objects: DetectedObject[] = rawObjects.map((obj, idx) => ({
-    id: `obj-${idx + 1}-${Date.now()}`,
-    label: obj.label ?? 'Unknown Item',
-    category: obj.category ?? 'Non-Recyclable',
-    material: obj.material ?? 'Unknown Material',
-    confidence: Math.min(100, Math.max(0, obj.confidence ?? 75)),
-    box: {
-      x: obj.box?.x ?? 10,
-      y: obj.box?.y ?? 10,
-      w: obj.box?.w ?? 80,
-      h: obj.box?.h ?? 80,
-    },
-    condition: obj.condition ?? 'Unknown',
-    disposalRecommendation: obj.disposalRecommendation ?? ['Dispose in General Waste'],
-    whyExplanation: obj.whyExplanation ?? 'AI classification based on visual analysis.',
-  }));
+    const profile = getProfile(pred.class);
 
-  // Pick highest-confidence object as primary
+    return {
+      id: `obj-${idx + 1}-${Date.now()}`,
+      label: pred.class.replace(/^\w/, (c) => c.toUpperCase()),
+      category: profile.category,
+      material: profile.material,
+      confidence: Math.round(pred.score * 100),
+      box: {
+        x: Math.round((bx / imgW) * 100),
+        y: Math.round((by / imgH) * 100),
+        w: Math.round((bw / imgW) * 100),
+        h: Math.round((bh / imgH) * 100),
+      },
+      condition: profile.condition,
+      disposalRecommendation: profile.disposal,
+      whyExplanation: profile.why,
+    };
+  });
+
+  // If nothing detected, return a fallback
+  if (objects.length === 0) {
+    const fallback: DetectedObject = {
+      id: `obj-1-${Date.now()}`,
+      label: 'No Waste Detected',
+      category: 'Non-Recyclable',
+      material: 'Unknown',
+      confidence: 0,
+      box: { x: 10, y: 10, w: 80, h: 80 },
+      condition: 'Unknown',
+      disposalRecommendation: ['Could not detect a specific waste object — try a clearer photo'],
+      whyExplanation: 'No objects were detected with sufficient confidence. Try uploading a clearer image.',
+    };
+    objects.push(fallback);
+  }
+
   const primary = [...objects].sort((a, b) => b.confidence - a.confidence)[0];
 
   return {
     id: `scan-${Date.now()}`,
     timestamp: new Date().toISOString(),
-    imageUrl,
-    primaryCategory: primary?.category ?? 'Non-Recyclable',
-    primaryCondition: primary?.condition ?? 'Unknown',
-    overallRecommendation: primary?.disposalRecommendation ?? ['Dispose responsibly'],
-    explainableAI:
-      parsed.overallSummary ??
-      `Detected ${objects.length} item(s): ${objects.map((o) => `${o.label} (${o.confidence}%)`).join(', ')}.`,
-    anonymizedTelemetryOptIn: telemetryOptIn,
-    zone: parsed.zone ?? zone,
+    imageUrl: dataUrl,
     objects,
+    primaryCategory: primary.category,
+    primaryCondition: primary.condition,
+    overallRecommendation: primary.disposalRecommendation,
+    explainableAI: `Detected ${objects.length} item(s) using TensorFlow COCO-SSD: ${objects.map((o) => `${o.label} (${o.confidence}%)`).join(', ')}.`,
+    anonymizedTelemetryOptIn: telemetryOptIn,
+    zone,
+  };
+}
+
+export async function scanImageElement(
+  imageEl: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement,
+  telemetryOptIn: boolean,
+  zone: string
+): Promise<ScanResult> {
+  const model = await getModel();
+  const predictions = await model.detect(imageEl);
+
+  const w =
+    imageEl instanceof HTMLVideoElement
+      ? imageEl.videoWidth || 640
+      : imageEl instanceof HTMLImageElement
+        ? imageEl.naturalWidth || imageEl.width || 640
+        : imageEl.width || 640;
+  const h =
+    imageEl instanceof HTMLVideoElement
+      ? imageEl.videoHeight || 480
+      : imageEl instanceof HTMLImageElement
+        ? imageEl.naturalHeight || imageEl.height || 480
+        : imageEl.height || 480;
+
+  const objects: DetectedObject[] = predictions.map((pred, idx) => {
+    const [bx, by, bw, bh] = pred.bbox;
+    const profile = getProfile(pred.class);
+    return {
+      id: `obj-${idx + 1}-${Date.now()}`,
+      label: pred.class.replace(/^\w/, (c) => c.toUpperCase()),
+      category: profile.category,
+      material: profile.material,
+      confidence: Math.round(pred.score * 100),
+      box: {
+        x: Math.round((bx / w) * 100),
+        y: Math.round((by / h) * 100),
+        w: Math.round((bw / w) * 100),
+        h: Math.round((bh / h) * 100),
+      },
+      condition: profile.condition,
+      disposalRecommendation: profile.disposal,
+      whyExplanation: profile.why,
+    };
+  });
+
+  if (objects.length === 0) {
+    objects.push({
+      id: `obj-1-${Date.now()}`,
+      label: 'No Waste Detected',
+      category: 'Non-Recyclable',
+      material: 'Unknown',
+      confidence: 0,
+      box: { x: 10, y: 10, w: 80, h: 80 },
+      condition: 'Unknown',
+      disposalRecommendation: ['No object detected — move closer or improve lighting'],
+      whyExplanation: 'No objects detected with sufficient confidence.',
+    });
+  }
+
+  const primary = [...objects].sort((a, b) => b.confidence - a.confidence)[0];
+
+  return {
+    id: `scan-${Date.now()}`,
+    timestamp: new Date().toISOString(),
+    imageUrl: '',
+    objects,
+    primaryCategory: primary.category,
+    primaryCondition: primary.condition,
+    overallRecommendation: primary.disposalRecommendation,
+    explainableAI: `Detected ${objects.length} item(s) using TensorFlow COCO-SSD: ${objects.map((o) => `${o.label} (${o.confidence}%)`).join(', ')}.`,
+    anonymizedTelemetryOptIn: telemetryOptIn,
+    zone,
   };
 }

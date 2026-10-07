@@ -52,7 +52,7 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
   // ─── Scan Steps Animation ──────────────────────────────────────────────────
   const startStepAnimation = () => {
     const steps = [
-      'Sending image to Gemini Vision AI...',
+      'Loading TensorFlow COCO-SSD model...',
       'Detecting waste objects...',
       'Classifying material composition...',
       'Evaluating contamination level...',
@@ -196,13 +196,13 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#10B981]/20 border border-[#10B981]/30 text-[#34D399] text-xs font-semibold uppercase tracking-wider mb-2">
               <Sparkles className="w-3.5 h-3.5" />
-              Gemini Vision AI · Real Waste Analysis
+              TensorFlow AI · Real-Time Waste Detection
             </div>
             <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
               Point. Scan. Understand.
             </h2>
             <p className="text-emerald-100/70 text-sm mt-1 max-w-xl">
-              Upload any waste photo — Gemini AI identifies the real item, material, and gives proper disposal guidance.
+              Upload any waste photo — TensorFlow COCO-SSD detects objects and gives proper disposal guidance. Works offline, no API key needed.
             </p>
           </div>
 
@@ -362,7 +362,7 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
                 <RefreshCw className="w-6 h-6" />
               </div>
               <div>
-                <h4 className="text-lg font-bold text-gray-900">Gemini AI Analyzing…</h4>
+                <h4 className="text-lg font-bold text-gray-900">TensorFlow AI Analyzing…</h4>
                 <p className="text-sm text-gray-500 mt-1">{scanStepText}</p>
               </div>
               <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
