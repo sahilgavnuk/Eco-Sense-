@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Camera, Upload, Sparkles, ShieldCheck, RefreshCw, Eye,
-  AlertCircle, Cpu, X, ZoomIn,
+  AlertCircle, X, ZoomIn,
 } from 'lucide-react';
 import type { ScanResult } from '../../types';
 import ScanResultCard from './ScanResultCard';
-import { scanDataUrl, preloadModel } from './wasteAI';
+import { scanDataUrl } from './wasteAI';
 
 interface ScannerInterfaceProps {
   onScanComplete?: (result: ScanResult) => void;
@@ -23,23 +23,11 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
   const [activeImageUrl, setActiveImageUrl]   = useState<string | null>(null);
   const [telemetryOptIn, setTelemetryOptIn]   = useState(true);
   const [scanError, setScanError]             = useState<string | null>(null);
-  const [modelReady, setModelReady]           = useState(false);
-  const [modelLoading, setModelLoading]       = useState(true);
   const [cameraOpen, setCameraOpen]           = useState(false);
   const [cameraStream, setCameraStream]       = useState<MediaStream | null>(null);
 
   const fileInputRef   = useRef<HTMLInputElement | null>(null);
   const videoRef       = useRef<HTMLVideoElement | null>(null);
-
-  // ── Preload model on mount ─────────────────────────────────────────────────
-  useEffect(() => {
-    preloadModel()
-      .then(() => { setModelReady(true); setModelLoading(false); })
-      .catch(() => {
-        setModelLoading(false);
-        setScanError('Could not load AI model. Check your internet connection and refresh.');
-      });
-  }, []);
 
   // ── Sync camera stream to video element ───────────────────────────────────
   useEffect(() => {
@@ -56,9 +44,9 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
   // ── Step animation ─────────────────────────────────────────────────────────
   const startSteps = () => {
     const steps = [
-      'Loading TensorFlow model…',
-      'Detecting objects…',
-      'Classifying waste type…',
+      'Sending image to Gemini Vision AI…',
+      'Detecting and classifying objects…',
+      'Evaluating materials & contamination…',
       'Generating disposal guide…',
     ];
     let i = 0;
@@ -163,24 +151,18 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#10B981]/20 border border-[#10B981]/30 text-[#34D399] text-xs font-semibold uppercase tracking-wider mb-2">
               <Sparkles className="w-3.5 h-3.5" />
-              TensorFlow AI · Real-Time Waste Detection
+              Gemini Vision AI · Real-Time Waste Detection
             </div>
             <h2 className="text-xl sm:text-2xl font-bold tracking-tight">Point. Scan. Understand.</h2>
             <p className="text-emerald-100/70 text-sm mt-1">
-              Tap <strong>Scan Waste</strong> — your camera opens instantly. AI identifies every object and gives disposal guidance.
+              Tap <strong>Scan Waste</strong> — your camera opens instantly. Gemini AI identifies every object and gives accurate disposal guidance.
             </p>
           </div>
 
           {/* Model status pill */}
-          <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border shrink-0 ${
-            modelLoading
-              ? 'bg-blue-500/20 border-blue-400/30 text-blue-200'
-              : modelReady
-                ? 'bg-emerald-500/20 border-emerald-400/30 text-emerald-200'
-                : 'bg-red-500/20 border-red-400/30 text-red-200'
-          }`}>
-            <Cpu className={`w-3.5 h-3.5 ${modelLoading ? 'animate-pulse' : ''}`} />
-            {modelLoading ? 'Loading AI…' : modelReady ? 'AI Ready ✓' : 'AI Error'}
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border shrink-0 bg-emerald-500/20 border-emerald-400/30 text-emerald-200">
+            <Sparkles className="w-3.5 h-3.5 text-[#34D399]" />
+            Gemini Vision AI
           </div>
         </div>
       </div>
@@ -213,7 +195,7 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
                 <div>
                   <p className="text-white font-semibold text-lg">Ready to scan</p>
                   <p className="text-white/50 text-sm mt-1">
-                    {modelLoading ? 'AI model loading, please wait…' : 'Use the buttons below to start'}
+                    Use the buttons below to start scanning
                   </p>
                 </div>
               </div>
@@ -288,17 +270,17 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
               {/* On mobile: capture="environment" opens camera directly in 1 tap */}
               <button
                 onClick={() => fileInputRef.current?.click()}
-                disabled={isScanning || modelLoading}
+                disabled={isScanning}
                 className="flex-1 py-3 rounded-xl bg-[#0F2E23] hover:bg-[#154233] disabled:opacity-50 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-md transition-all"
               >
                 <Upload className="w-4 h-4" />
-                {isScanning ? 'Scanning…' : modelLoading ? 'Loading AI…' : 'Scan Waste'}
+                {isScanning ? 'Scanning…' : 'Scan Waste'}
               </button>
 
               {/* Live camera (desktop) */}
               <button
                 onClick={cameraOpen ? stopCamera : openCamera}
-                disabled={isScanning || modelLoading}
+                disabled={isScanning}
                 className={`px-4 py-3 rounded-xl font-semibold text-sm flex items-center gap-2 transition-all shadow-md disabled:opacity-50 ${
                   cameraOpen
                     ? 'bg-amber-500 hover:bg-amber-600 text-white'
@@ -419,23 +401,19 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
               </div>
               <div>
                 <h3 className="font-bold text-gray-900 text-lg">
-                  {modelLoading ? 'Loading AI Model…' : 'Ready to Scan'}
+                  Ready to Scan
                 </h3>
                 <p className="text-sm text-gray-500 mt-1">
-                  {modelLoading
-                    ? 'TensorFlow COCO-SSD is downloading (~15s on first load)'
-                    : 'Tap "Scan Waste" — on mobile your camera opens instantly!'}
+                  Tap "Scan Waste" — snap or upload any photo and Gemini AI will identify every item with full disposal details!
                 </p>
               </div>
-              {!modelLoading && (
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="mx-auto flex items-center gap-2 px-6 py-3 bg-[#0F2E23] hover:bg-[#154233] text-white font-bold rounded-xl shadow transition-all"
-                >
-                  <Upload className="w-4 h-4" />
-                  Scan Waste Now
-                </button>
-              )}
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="mx-auto flex items-center gap-2 px-6 py-3 bg-[#0F2E23] hover:bg-[#154233] text-white font-bold rounded-xl shadow transition-all"
+              >
+                <Upload className="w-4 h-4" />
+                Scan Waste Now
+              </button>
             </div>
           )}
         </div>
