@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Camera, Upload, Sparkles, ShieldCheck, RefreshCw, Layers, Eye, AlertCircle } from 'lucide-react';
+import { Camera, Upload, Sparkles, ShieldCheck, RefreshCw, Layers, Eye, AlertCircle, Cpu } from 'lucide-react';
 import type { ScanResult } from '../../types';
 import { SAMPLE_SCANS } from '../../data/mockData';
 import ScanResultCard from './ScanResultCard';
-import { scanDataUrl } from './wasteAI';
+import { scanDataUrl, preloadModel } from './wasteAI';
 
 interface ScannerInterfaceProps {
   onScanComplete?: (result: ScanResult) => void;
@@ -25,9 +25,26 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
   const [telemetryOptIn, setTelemetryOptIn] = useState<boolean>(true);
   const [scanError, setScanError] = useState<string | null>(null);
   const [activeMode, setActiveMode] = useState<'sample' | 'upload' | 'camera'>('sample');
+  const [modelReady, setModelReady] = useState<boolean>(false);
+  const [modelLoading, setModelLoading] = useState<boolean>(true);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+
+  // ─── Preload TF.js model on mount ─────────────────────────────────────────
+  useEffect(() => {
+    setModelLoading(true);
+    preloadModel()
+      .then(() => {
+        setModelReady(true);
+        setModelLoading(false);
+      })
+      .catch(() => {
+        setModelLoading(false);
+        setScanError('Could not load AI model. Please check your internet connection and refresh.');
+      });
+  }, []);
 
   // Auto-load first sample on mount
   useEffect(() => {
@@ -258,6 +275,20 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
           ))}
         </div>
       </div>
+
+      {/* Model loading banner */}
+      {modelLoading && (
+        <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-800">
+          <Cpu className="w-4 h-4 shrink-0 text-blue-500 animate-pulse" />
+          <span><strong>Loading AI model…</strong> TensorFlow COCO-SSD is warming up (~15 seconds on first load). Please wait before scanning.</span>
+        </div>
+      )}
+      {modelReady && !isScanning && (
+        <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-sm text-emerald-800">
+          <Cpu className="w-4 h-4 shrink-0 text-emerald-500" />
+          <span><strong>AI model ready!</strong> Upload a photo or use your camera to scan waste.</span>
+        </div>
+      )}
 
       {/* Main grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
