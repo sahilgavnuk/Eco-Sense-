@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Camera, Upload, Sparkles, ShieldCheck, RefreshCw, Layers, Eye, AlertCircle, Cpu } from 'lucide-react';
+import {
+  Camera, Upload, Sparkles, ShieldCheck, RefreshCw, Eye,
+  AlertCircle, Cpu, X, ZoomIn,
+} from 'lucide-react';
 import type { ScanResult } from '../../types';
-import { SAMPLE_SCANS } from '../../data/mockData';
 import ScanResultCard from './ScanResultCard';
 import { scanDataUrl, preloadModel } from './wasteAI';
 
@@ -14,333 +16,241 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
   onScanComplete,
   compactMode: _compactMode = false,
 }) => {
-  const [selectedSampleIndex, setSelectedSampleIndex] = useState<number>(0);
-  const [isScanning, setIsScanning] = useState<boolean>(false);
-  const [scanStepText, setScanStepText] = useState<string>('');
-  const [currentScanResult, setCurrentScanResult] = useState<ScanResult | null>(null);
-  const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
-  const [useCamera, setUseCamera] = useState<boolean>(false);
-  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
-  const [activeImageUrl, setActiveImageUrl] = useState<string>(SAMPLE_SCANS[0].imageUrl);
-  const [telemetryOptIn, setTelemetryOptIn] = useState<boolean>(true);
-  const [scanError, setScanError] = useState<string | null>(null);
-  const [activeMode, setActiveMode] = useState<'sample' | 'upload' | 'camera'>('sample');
-  const [modelReady, setModelReady] = useState<boolean>(false);
-  const [modelLoading, setModelLoading] = useState<boolean>(true);
+  const [isScanning, setIsScanning]           = useState(false);
+  const [scanStepText, setScanStepText]       = useState('');
+  const [currentResult, setCurrentResult]     = useState<ScanResult | null>(null);
+  const [selectedObjectId, setSelectedId]     = useState<string | null>(null);
+  const [activeImageUrl, setActiveImageUrl]   = useState<string | null>(null);
+  const [telemetryOptIn, setTelemetryOptIn]   = useState(true);
+  const [scanError, setScanError]             = useState<string | null>(null);
+  const [modelReady, setModelReady]           = useState(false);
+  const [modelLoading, setModelLoading]       = useState(true);
+  const [cameraOpen, setCameraOpen]           = useState(false);
+  const [cameraStream, setCameraStream]       = useState<MediaStream | null>(null);
 
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const fileInputRef   = useRef<HTMLInputElement | null>(null);
+  const videoRef       = useRef<HTMLVideoElement | null>(null);
 
-
-  // ─── Preload TF.js model on mount ─────────────────────────────────────────
+  // ── Preload model on mount ─────────────────────────────────────────────────
   useEffect(() => {
-    setModelLoading(true);
     preloadModel()
-      .then(() => {
-        setModelReady(true);
-        setModelLoading(false);
-      })
+      .then(() => { setModelReady(true); setModelLoading(false); })
       .catch(() => {
         setModelLoading(false);
-        setScanError('Could not load AI model. Please check your internet connection and refresh.');
+        setScanError('Could not load AI model. Check your internet connection and refresh.');
       });
   }, []);
 
-  // Auto-load first sample on mount
-  useEffect(() => {
-    handleSelectSample(0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Sync camera stream to video element
+  // ── Sync camera stream to video element ───────────────────────────────────
   useEffect(() => {
     if (videoRef.current && cameraStream) {
       videoRef.current.srcObject = cameraStream;
     }
   }, [cameraStream]);
 
-  // Stop camera on unmount
+  // ── Stop camera on unmount ─────────────────────────────────────────────────
   useEffect(() => {
-    return () => {
-      if (cameraStream) cameraStream.getTracks().forEach((t) => t.stop());
-    };
+    return () => { cameraStream?.getTracks().forEach((t) => t.stop()); };
   }, [cameraStream]);
 
-  // ─── Scan Steps Animation ──────────────────────────────────────────────────
-  const startStepAnimation = () => {
+  // ── Step animation ─────────────────────────────────────────────────────────
+  const startSteps = () => {
     const steps = [
-      'Loading TensorFlow COCO-SSD model...',
-      'Detecting waste objects...',
-      'Classifying material composition...',
-      'Evaluating contamination level...',
-      'Generating disposal guidance...',
+      'Loading TensorFlow model…',
+      'Detecting objects…',
+      'Classifying waste type…',
+      'Generating disposal guide…',
     ];
     let i = 0;
     setScanStepText(steps[0]);
-    const interval = setInterval(() => {
+    const iv = setInterval(() => {
       i = Math.min(i + 1, steps.length - 1);
       setScanStepText(steps[i]);
-    }, 700);
-    return interval;
+    }, 800);
+    return iv;
   };
 
-  // ─── Core scan runner ──────────────────────────────────────────────────────
-  const runScan = useCallback(
-    async (dataUrl: string) => {
-      setIsScanning(true);
-      setScanError(null);
-      setCurrentScanResult(null);
-      const interval = startStepAnimation();
-
-      try {
-        const result = await scanDataUrl(dataUrl, telemetryOptIn, 'Zone 2 — Central District');
-        result.imageUrl = dataUrl;
-        clearInterval(interval);
-        setIsScanning(false);
-        setCurrentScanResult(result);
-        setSelectedObjectId(result.objects[0]?.id ?? null);
-        if (onScanComplete) onScanComplete(result);
-      } catch (err) {
-        clearInterval(interval);
-        setIsScanning(false);
-        const msg = err instanceof Error ? err.message : String(err);
-        setScanError(`Scan failed: ${msg}`);
-      }
-    },
-    [telemetryOptIn, onScanComplete]
-  );
-
-  // ─── Fetch sample image as dataURL then scan ───────────────────────────────
-  const handleSelectSample = (idx: number) => {
-    handleStopCamera();
-    setSelectedSampleIndex(idx);
-    setActiveMode('sample');
-    setActiveImageUrl(SAMPLE_SCANS[idx].imageUrl);
+  // ── Core scan ──────────────────────────────────────────────────────────────
+  const runScan = useCallback(async (dataUrl: string) => {
+    setIsScanning(true);
     setScanError(null);
+    setCurrentResult(null);
+    const iv = startSteps();
+    try {
+      const result = await scanDataUrl(dataUrl, telemetryOptIn, 'Zone 2 — Central District');
+      result.imageUrl = dataUrl;
+      clearInterval(iv);
+      setIsScanning(false);
+      setCurrentResult(result);
+      setSelectedId(result.objects[0]?.id ?? null);
+      onScanComplete?.(result);
+    } catch (err) {
+      clearInterval(iv);
+      setIsScanning(false);
+      setScanError(`Scan failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }, [telemetryOptIn, onScanComplete]);
 
-    // Fetch the Unsplash image and convert to dataURL for Gemini
-    fetch(SAMPLE_SCANS[idx].imageUrl)
-      .then((res) => {
-        if (!res.ok) throw new Error('Image fetch failed');
-        return res.blob();
-      })
-      .then((blob) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const dataUrl = e.target?.result as string;
-          if (dataUrl) runScan(dataUrl);
-        };
-        reader.readAsDataURL(blob);
-      })
-      .catch(() => {
-        // CORS fallback: show sample data without calling API
-        const sample = SAMPLE_SCANS[idx];
-        setCurrentScanResult(sample);
-        setSelectedObjectId(sample.objects[0]?.id ?? null);
-        setScanError('Could not fetch sample image for AI scan — showing pre-loaded data. Upload your own photo for real AI analysis!');
-      });
-  };
-
-  // ─── File Upload ───────────────────────────────────────────────────────────
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // ── File / camera-capture upload ───────────────────────────────────────────
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    handleStopCamera();
-    setActiveMode('upload');
-
+    stopCamera();
     const reader = new FileReader();
     reader.onload = (ev) => {
-      const dataUrl = ev.target?.result as string;
-      if (!dataUrl) return;
-      setActiveImageUrl(dataUrl);
-      runScan(dataUrl);
+      const url = ev.target?.result as string;
+      if (!url) return;
+      setActiveImageUrl(url);
+      runScan(url);
     };
     reader.readAsDataURL(file);
     e.target.value = '';
   };
 
-  // ─── Camera ───────────────────────────────────────────────────────────────
-  const handleStartCamera = async () => {
-    if (useCamera) {
-      handleStopCamera();
-      return;
-    }
+  // ── Camera ────────────────────────────────────────────────────────────────
+  const openCamera = async () => {
     try {
-      setCurrentScanResult(null);
+      setCurrentResult(null);
       setScanError(null);
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' },
+      });
       setCameraStream(stream);
-      setUseCamera(true);
-      setActiveMode('camera');
+      setCameraOpen(true);
+      setActiveImageUrl(null);
     } catch {
       alert('Camera access denied. Please upload an image instead.');
     }
   };
 
-  const handleStopCamera = () => {
-    if (cameraStream) {
-      cameraStream.getTracks().forEach((t) => t.stop());
-      setCameraStream(null);
-    }
-    setUseCamera(false);
+  const stopCamera = () => {
+    cameraStream?.getTracks().forEach((t) => t.stop());
+    setCameraStream(null);
+    setCameraOpen(false);
   };
 
-  const handleCameraCapture = () => {
+  const captureAndScan = () => {
     const video = videoRef.current;
     if (!video) return;
     const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth || 640;
+    canvas.width  = video.videoWidth  || 640;
     canvas.height = video.videoHeight || 480;
     canvas.getContext('2d')?.drawImage(video, 0, 0);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-    setActiveImageUrl(dataUrl);
-    handleStopCamera();
-    setActiveMode('upload');
-    runScan(dataUrl);
+    const url = canvas.toDataURL('image/jpeg', 0.92);
+    setActiveImageUrl(url);
+    stopCamera();
+    runScan(url);
   };
 
-  // ─── Derived ───────────────────────────────────────────────────────────────
-  const activeObjects = currentScanResult?.objects ?? [];
+  const scanAgain = () => {
+    setCurrentResult(null);
+    setScanError(null);
+    setActiveImageUrl(null);
+    fileInputRef.current?.click();
+  };
+
+  const activeObjects = currentResult?.objects ?? [];
   const selectedObject = activeObjects.find((o) => o.id === selectedObjectId) ?? activeObjects[0];
 
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="w-full max-w-5xl mx-auto space-y-6">
-      {/* Banner */}
-      <div className="bg-[#0F2E23] text-white p-4 sm:p-6 rounded-2xl shadow-xl border border-[#154233] relative overflow-hidden">
-        <div className="absolute -right-10 -bottom-10 w-48 h-48 bg-[#10B981]/20 rounded-full blur-3xl pointer-events-none" />
+    <div className="w-full max-w-5xl mx-auto space-y-5">
 
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
+      {/* ── Header ────────────────────────────────────────────────────────── */}
+      <div className="bg-[#0F2E23] text-white p-5 sm:p-6 rounded-2xl shadow-xl border border-[#154233] relative overflow-hidden">
+        <div className="absolute -right-10 -bottom-10 w-48 h-48 bg-[#10B981]/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#10B981]/20 border border-[#10B981]/30 text-[#34D399] text-xs font-semibold uppercase tracking-wider mb-2">
               <Sparkles className="w-3.5 h-3.5" />
               TensorFlow AI · Real-Time Waste Detection
             </div>
-            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
-              Point. Scan. Understand.
-            </h2>
-            <p className="text-emerald-100/70 text-sm mt-1 max-w-xl">
-              Upload any waste photo — TensorFlow COCO-SSD detects objects and gives proper disposal guidance. Works offline, no API key needed.
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight">Point. Scan. Understand.</h2>
+            <p className="text-emerald-100/70 text-sm mt-1">
+              Tap <strong>Scan Waste</strong> — your camera opens instantly. AI identifies every object and gives disposal guidance.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={handleStartCamera}
-              disabled={isScanning}
-              className={`px-4 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 transition-all shadow-md disabled:opacity-50 ${
-                useCamera
-                  ? 'bg-amber-500 hover:bg-amber-600 text-white'
-                  : 'bg-[#10B981] hover:bg-[#059669] text-white'
-              }`}
-            >
-              <Camera className="w-4 h-4" />
-              {useCamera ? 'Stop Camera' : 'Open Camera'}
-            </button>
-
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isScanning}
-              className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-sm flex items-center gap-2 border border-white/15 transition-all disabled:opacity-50"
-            >
-              <Upload className="w-4 h-4" />
-              Upload Image
-            </button>
-            <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="image/*" className="hidden" />
+          {/* Model status pill */}
+          <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border shrink-0 ${
+            modelLoading
+              ? 'bg-blue-500/20 border-blue-400/30 text-blue-200'
+              : modelReady
+                ? 'bg-emerald-500/20 border-emerald-400/30 text-emerald-200'
+                : 'bg-red-500/20 border-red-400/30 text-red-200'
+          }`}>
+            <Cpu className={`w-3.5 h-3.5 ${modelLoading ? 'animate-pulse' : ''}`} />
+            {modelLoading ? 'Loading AI…' : modelReady ? 'AI Ready ✓' : 'AI Error'}
           </div>
-        </div>
-
-        {/* Sample selectors */}
-        <div className="mt-6 pt-4 border-t border-white/10 flex items-center gap-3 overflow-x-auto pb-2 scrollbar-none">
-          <span className="text-xs font-semibold uppercase text-emerald-300/80 whitespace-nowrap flex items-center gap-1.5">
-            <Layers className="w-3.5 h-3.5" /> Try Samples:
-          </span>
-          {SAMPLE_SCANS.map((sample, idx) => (
-            <button
-              key={sample.id}
-              onClick={() => handleSelectSample(idx)}
-              disabled={isScanning}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all flex items-center gap-2 border disabled:opacity-50 ${
-                selectedSampleIndex === idx && activeMode === 'sample'
-                  ? 'bg-[#10B981] text-white border-emerald-400 font-bold shadow-sm'
-                  : 'bg-white/5 hover:bg-white/10 text-emerald-100 border-white/10'
-              }`}
-            >
-              <span>{sample.objects[0]?.label || 'Sample'}</span>
-              {sample.objects.length > 1 && (
-                <span className="bg-emerald-950/60 px-1.5 py-0.5 rounded text-[10px] text-emerald-300">
-                  +{sample.objects.length - 1}
-                </span>
-              )}
-            </button>
-          ))}
         </div>
       </div>
 
-      {/* Model loading banner */}
-      {modelLoading && (
-        <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-800">
-          <Cpu className="w-4 h-4 shrink-0 text-blue-500 animate-pulse" />
-          <span><strong>Loading AI model…</strong> TensorFlow COCO-SSD is warming up (~15 seconds on first load). Please wait before scanning.</span>
-        </div>
-      )}
-      {modelReady && !isScanning && (
-        <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-sm text-emerald-800">
-          <Cpu className="w-4 h-4 shrink-0 text-emerald-500" />
-          <span><strong>AI model ready!</strong> Upload a photo or use your camera to scan waste.</span>
-        </div>
-      )}
+      {/* ── Main layout ───────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
 
-      {/* Main grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Image viewport */}
+        {/* ── Left: image / camera viewport ─────────────────────────────── */}
         <div className="lg:col-span-7 bg-white rounded-2xl border border-gray-200 shadow-lg overflow-hidden">
+
+          {/* Viewport */}
           <div className="relative aspect-[4/3] bg-gray-900 flex items-center justify-center overflow-hidden">
-            {useCamera ? (
+
+            {/* Camera live feed */}
+            {cameraOpen && (
               <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-            ) : (
-              <img
-                src={activeImageUrl}
-                alt="Waste scan target"
-                className="w-full h-full object-cover"
-                crossOrigin="anonymous"
-              />
             )}
 
-            {/* Scanning laser */}
+            {/* Captured / uploaded image */}
+            {!cameraOpen && activeImageUrl && (
+              <img src={activeImageUrl} alt="Scan target" className="w-full h-full object-cover" />
+            )}
+
+            {/* Empty state — big 1-click button */}
+            {!cameraOpen && !activeImageUrl && !isScanning && (
+              <div className="flex flex-col items-center gap-4 text-center px-6">
+                <div className="w-20 h-20 rounded-full bg-[#10B981]/20 border-2 border-[#10B981]/40 flex items-center justify-center">
+                  <ZoomIn className="w-9 h-9 text-[#10B981]" />
+                </div>
+                <div>
+                  <p className="text-white font-semibold text-lg">Ready to scan</p>
+                  <p className="text-white/50 text-sm mt-1">
+                    {modelLoading ? 'AI model loading, please wait…' : 'Use the buttons below to start'}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Scanning laser animation */}
             {isScanning && (
-              <div className="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-[#10B981] to-transparent shadow-[0_0_15px_#10B981] animate-scan-laser z-20">
-                <div className="absolute left-1/2 -top-6 -translate-x-1/2 px-3 py-1 bg-[#0F2E23]/90 backdrop-blur text-emerald-300 text-xs font-mono rounded-full border border-emerald-500/50 shadow-md whitespace-nowrap">
+              <div className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-[#10B981] to-transparent shadow-[0_0_20px_#10B981] animate-scan-laser z-20">
+                <div className="absolute left-1/2 -top-6 -translate-x-1/2 px-3 py-1 bg-[#0F2E23]/90 backdrop-blur text-emerald-300 text-xs font-mono rounded-full border border-emerald-500/40 whitespace-nowrap shadow-md">
                   {scanStepText}
                 </div>
               </div>
             )}
 
             {/* Bounding boxes */}
-            {!isScanning && currentScanResult && (
+            {!isScanning && currentResult && (
               <div className="absolute inset-0 pointer-events-none">
-                {currentScanResult.objects.map((obj) => {
-                  const isSelected = obj.id === selectedObjectId;
+                {currentResult.objects.map((obj) => {
+                  const active = obj.id === selectedObjectId;
                   return (
                     <div
                       key={obj.id}
-                      onClick={() => setSelectedObjectId(obj.id)}
-                      style={{
-                        left: `${obj.box.x}%`,
-                        top: `${obj.box.y}%`,
-                        width: `${obj.box.w}%`,
-                        height: `${obj.box.h}%`,
-                      }}
+                      onClick={() => setSelectedId(obj.id)}
+                      style={{ left: `${obj.box.x}%`, top: `${obj.box.y}%`, width: `${obj.box.w}%`, height: `${obj.box.h}%` }}
                       className={`absolute border-2 rounded-lg transition-all pointer-events-auto cursor-pointer ${
-                        isSelected
-                          ? 'border-[#10B981] bg-[#10B981]/15 shadow-[0_0_20px_rgba(16,185,129,0.6)] animate-box-pulse z-30'
-                          : 'border-white/70 bg-black/20 hover:border-[#10B981]/80 hover:bg-[#10B981]/10'
+                        active
+                          ? 'border-[#10B981] bg-[#10B981]/15 shadow-[0_0_20px_rgba(16,185,129,0.5)] z-30'
+                          : 'border-white/60 bg-black/20 hover:border-[#10B981]/70'
                       }`}
                     >
+                      {/* Corner marks */}
                       <div className="absolute -top-1.5 -left-1.5 w-3 h-3 border-t-2 border-l-2 border-[#10B981]" />
                       <div className="absolute -top-1.5 -right-1.5 w-3 h-3 border-t-2 border-r-2 border-[#10B981]" />
                       <div className="absolute -bottom-1.5 -left-1.5 w-3 h-3 border-b-2 border-l-2 border-[#10B981]" />
                       <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 border-b-2 border-r-2 border-[#10B981]" />
-                      <div className="absolute -top-8 left-0 flex items-center gap-1.5 px-2.5 py-1 bg-[#0F2E23]/90 backdrop-blur text-white text-xs font-semibold rounded-md border border-[#10B981]/50 shadow-lg whitespace-nowrap">
+                      {/* Label */}
+                      <div className="absolute -top-8 left-0 flex items-center gap-1.5 px-2.5 py-1 bg-[#0F2E23]/90 backdrop-blur text-white text-xs font-semibold rounded-md border border-[#10B981]/40 shadow-lg whitespace-nowrap">
                         <span>{obj.label}</span>
                         <span className="text-[#34D399] font-mono text-[11px]">{obj.confidence}%</span>
                       </div>
@@ -351,49 +261,105 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
             )}
 
             {/* Camera capture button */}
-            {useCamera && !isScanning && (
-              <div className="absolute bottom-6 inset-x-0 flex justify-center z-30">
+            {cameraOpen && !isScanning && (
+              <div className="absolute bottom-6 inset-x-0 flex items-center justify-center gap-4 z-30">
                 <button
-                  onClick={handleCameraCapture}
-                  className="px-6 py-3 rounded-full bg-[#10B981] hover:bg-[#059669] text-white font-bold shadow-xl flex items-center gap-2 transform hover:scale-105 transition-all"
+                  onClick={captureAndScan}
+                  className="px-6 py-3 rounded-full bg-[#10B981] hover:bg-[#059669] text-white font-bold shadow-2xl flex items-center gap-2 transform hover:scale-105 transition-all"
                 >
                   <Sparkles className="w-5 h-5" />
-                  Capture &amp; Analyze
+                  Capture & Scan
+                </button>
+                <button
+                  onClick={stopCamera}
+                  className="w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center"
+                >
+                  <X className="w-5 h-5" />
                 </button>
               </div>
             )}
           </div>
 
-          {/* Telemetry */}
-          <div className="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between gap-3 text-xs text-gray-600">
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="telemetry"
-                checked={telemetryOptIn}
-                onChange={(e) => setTelemetryOptIn(e.target.checked)}
-                className="w-4 h-4 rounded accent-[#10B981]"
-              />
-              <label htmlFor="telemetry" className="cursor-pointer">
+          {/* ── Action buttons below viewport ────────────────────────────── */}
+          <div className="p-4 bg-gray-50 border-t border-gray-100 space-y-3">
+
+            {/* PRIMARY: 1-click Scan button */}
+            <div className="flex gap-3">
+              {/* On mobile: capture="environment" opens camera directly in 1 tap */}
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isScanning || modelLoading}
+                className="flex-1 py-3 rounded-xl bg-[#0F2E23] hover:bg-[#154233] disabled:opacity-50 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-md transition-all"
+              >
+                <Upload className="w-4 h-4" />
+                {isScanning ? 'Scanning…' : modelLoading ? 'Loading AI…' : 'Scan Waste'}
+              </button>
+
+              {/* Live camera (desktop) */}
+              <button
+                onClick={cameraOpen ? stopCamera : openCamera}
+                disabled={isScanning || modelLoading}
+                className={`px-4 py-3 rounded-xl font-semibold text-sm flex items-center gap-2 transition-all shadow-md disabled:opacity-50 ${
+                  cameraOpen
+                    ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                    : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-300'
+                }`}
+              >
+                <Camera className="w-4 h-4" />
+                {cameraOpen ? 'Close' : 'Camera'}
+              </button>
+
+              {currentResult && (
+                <button
+                  onClick={scanAgain}
+                  disabled={isScanning}
+                  className="px-4 py-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-sm flex items-center gap-2 transition-all disabled:opacity-50"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Rescan
+                </button>
+              )}
+            </div>
+
+            {/* Telemetry */}
+            <div className="flex items-center justify-between text-xs text-gray-500">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={telemetryOptIn}
+                  onChange={(e) => setTelemetryOptIn(e.target.checked)}
+                  className="w-4 h-4 rounded accent-[#10B981]"
+                />
                 Contribute anonymized scan data to Community Intelligence
               </label>
+              <span className="inline-flex items-center gap-1 text-[#154233] font-medium">
+                <ShieldCheck className="w-4 h-4 text-[#10B981]" /> Privacy Secured
+              </span>
             </div>
-            <span className="inline-flex items-center gap-1 text-[#154233] font-medium">
-              <ShieldCheck className="w-4 h-4 text-[#10B981]" /> Privacy Secured
-            </span>
           </div>
+
+          {/* Hidden file input — capture="environment" opens camera on mobile */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFile}
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+          />
         </div>
 
-        {/* Results panel */}
+        {/* ── Right: results panel ───────────────────────────────────────── */}
         <div className="lg:col-span-5 space-y-4">
-          {/* Scanning state */}
+
+          {/* Scanning indicator */}
           {isScanning && (
             <div className="bg-white p-8 rounded-2xl border border-gray-200 shadow-md text-center space-y-4">
               <div className="w-12 h-12 mx-auto rounded-full bg-[#10B981]/10 flex items-center justify-center text-[#10B981] animate-spin">
                 <RefreshCw className="w-6 h-6" />
               </div>
               <div>
-                <h4 className="text-lg font-bold text-gray-900">TensorFlow AI Analyzing…</h4>
+                <h4 className="text-lg font-bold text-gray-900">AI Analyzing…</h4>
                 <p className="text-sm text-gray-500 mt-1">{scanStepText}</p>
               </div>
               <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
@@ -410,59 +376,66 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
             </div>
           )}
 
-          {/* Results */}
-          {!isScanning && currentScanResult && (
-            <div className="space-y-4">
-              {currentScanResult.objects.length > 1 && (
-                <div className="bg-[#0F2E23]/5 p-3 rounded-xl border border-[#0F2E23]/10">
-                  <div className="text-xs font-bold uppercase text-[#0F2E23] mb-2 flex items-center justify-between">
-                    <span>{currentScanResult.objects.length} Objects Detected</span>
-                    <span className="text-gray-500 font-normal">Tap to switch</span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {currentScanResult.objects.map((obj) => (
-                      <button
-                        key={obj.id}
-                        onClick={() => setSelectedObjectId(obj.id)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                          selectedObjectId === obj.id
-                            ? 'bg-[#0F2E23] text-white shadow'
-                            : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
-                        }`}
-                      >
-                        <span>{obj.label}</span>
-                        <span className="text-emerald-500 font-mono">({obj.confidence}%)</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <ScanResultCard
-                result={currentScanResult}
-                activeObject={selectedObject ?? currentScanResult.objects[0]}
-                onScanAnother={() => {
-                  if (activeMode === 'camera') {
-                    setCurrentScanResult(null);
-                  } else {
-                    const nextIdx = (selectedSampleIndex + 1) % SAMPLE_SCANS.length;
-                    handleSelectSample(nextIdx);
-                  }
-                }}
-              />
+          {/* Multi-object selector */}
+          {!isScanning && currentResult && currentResult.objects.length > 1 && (
+            <div className="bg-[#0F2E23]/5 p-3 rounded-xl border border-[#0F2E23]/10">
+              <div className="text-xs font-bold uppercase text-[#0F2E23] mb-2 flex items-center justify-between">
+                <span>{currentResult.objects.length} Objects Detected</span>
+                <span className="text-gray-500 font-normal">Tap to switch</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {currentResult.objects.map((obj) => (
+                  <button
+                    key={obj.id}
+                    onClick={() => setSelectedId(obj.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                      selectedObjectId === obj.id
+                        ? 'bg-[#0F2E23] text-white shadow'
+                        : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                    }`}
+                  >
+                    <span>{obj.label}</span>
+                    <span className="text-emerald-500 font-mono">({obj.confidence}%)</span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
-          {/* Idle */}
-          {!isScanning && !currentScanResult && !scanError && (
-            <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-md text-center space-y-3">
-              <div className="w-12 h-12 mx-auto rounded-full bg-emerald-50 flex items-center justify-center text-[#10B981]">
-                <Eye className="w-6 h-6" />
+          {/* Result card */}
+          {!isScanning && currentResult && selectedObject && (
+            <ScanResultCard
+              result={currentResult}
+              activeObject={selectedObject}
+              onScanAnother={scanAgain}
+            />
+          )}
+
+          {/* Idle state */}
+          {!isScanning && !currentResult && !scanError && (
+            <div className="bg-white p-8 rounded-2xl border border-gray-200 shadow-md text-center space-y-4">
+              <div className="w-14 h-14 mx-auto rounded-full bg-emerald-50 flex items-center justify-center text-[#10B981]">
+                <Eye className="w-7 h-7" />
               </div>
-              <h3 className="font-bold text-gray-900 text-lg">Ready to Scan</h3>
-              <p className="text-sm text-gray-600">
-                Upload a photo of any waste item — Gemini AI will identify it and give real disposal guidance.
-              </p>
+              <div>
+                <h3 className="font-bold text-gray-900 text-lg">
+                  {modelLoading ? 'Loading AI Model…' : 'Ready to Scan'}
+                </h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  {modelLoading
+                    ? 'TensorFlow COCO-SSD is downloading (~15s on first load)'
+                    : 'Tap "Scan Waste" — on mobile your camera opens instantly!'}
+                </p>
+              </div>
+              {!modelLoading && (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="mx-auto flex items-center gap-2 px-6 py-3 bg-[#0F2E23] hover:bg-[#154233] text-white font-bold rounded-xl shadow transition-all"
+                >
+                  <Upload className="w-4 h-4" />
+                  Scan Waste Now
+                </button>
+              )}
             </div>
           )}
         </div>
