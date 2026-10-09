@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Camera, Upload, Sparkles, ShieldCheck, RefreshCw, Eye,
-  AlertCircle, X, ZoomIn, CheckCircle2, SwitchCamera
+  AlertCircle, X, ZoomIn, CheckCircle2, SwitchCamera, MapPin
 } from 'lucide-react';
 import type { ScanResult } from '../../types';
 import ScanResultCard from './ScanResultCard';
 import { scanDataUrl } from './wasteAI';
+import { useEco } from '../../context/EcoContext';
+import { AVAILABLE_ZONES } from '../../data/mockData';
 
 interface ScannerInterfaceProps {
   onScanComplete?: (result: ScanResult) => void;
@@ -18,6 +20,9 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
   compactMode: _compactMode = false,
   onNavigate,
 }) => {
+  const { addScan, currentUser, t } = useEco();
+
+  const [selectedZone, setSelectedZone]       = useState<string>(currentUser.zone || AVAILABLE_ZONES[1]);
   const [isScanning, setIsScanning]           = useState(false);
   const [scanStepText, setScanStepText]       = useState('');
   const [currentResult, setCurrentResult]     = useState<ScanResult | null>(null);
@@ -28,12 +33,13 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
   const [cameraOpen, setCameraOpen]           = useState(false);
   const [cameraFacing, setCameraFacing]       = useState<'environment' | 'user'>('environment');
   const [cameraStream, setCameraStream]       = useState<MediaStream | null>(null);
+  const [scanLoggedNotice, setScanLoggedNotice] = useState(false);
 
   const galleryInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef  = useRef<HTMLInputElement | null>(null);
   const videoRef        = useRef<HTMLVideoElement | null>(null);
 
-  // ── Sync camera stream to video element ───────────────────────────────────
+  // Sync camera stream to video element
   useEffect(() => {
     if (videoRef.current && cameraStream) {
       videoRef.current.srcObject = cameraStream;
@@ -41,14 +47,14 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
     }
   }, [cameraStream, cameraOpen]);
 
-  // ── Stop camera on unmount ─────────────────────────────────────────────────
+  // Stop camera on unmount
   useEffect(() => {
     return () => {
       cameraStream?.getTracks().forEach((t) => t.stop());
     };
   }, [cameraStream]);
 
-  // ── Step animation ─────────────────────────────────────────────────────────
+  // Step animation
   const startSteps = () => {
     const steps = [
       'Sending image to Gemini Vision AI…',
@@ -62,32 +68,40 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
     const iv = setInterval(() => {
       i = Math.min(i + 1, steps.length - 1);
       setScanStepText(steps[i]);
-    }, 700);
+    }, 600);
     return iv;
   };
 
-  // ── Core scan ──────────────────────────────────────────────────────────────
+  // Core scan execution
   const runScan = useCallback(async (dataUrl: string) => {
     setIsScanning(true);
     setScanError(null);
     setCurrentResult(null);
+    setScanLoggedNotice(false);
     const iv = startSteps();
     try {
-      const result = await scanDataUrl(dataUrl, telemetryOptIn, 'Zone 2 — Central District');
+      const result = await scanDataUrl(dataUrl, telemetryOptIn, selectedZone);
       result.imageUrl = dataUrl;
       clearInterval(iv);
       setIsScanning(false);
       setCurrentResult(result);
       setSelectedId(result.objects[0]?.id ?? null);
+
+      // Add to global state (+1 to total waste count)
+      if (telemetryOptIn) {
+        addScan(result, selectedZone);
+        setScanLoggedNotice(true);
+      }
+
       onScanComplete?.(result);
     } catch (err) {
       clearInterval(iv);
       setIsScanning(false);
-      setScanError(`Scan failed: ${err instanceof Error ? err.message : String(err)}`);
+      setScanError(`Scan issue: ${err instanceof Error ? err.message : String(err)}`);
     }
-  }, [telemetryOptIn, onScanComplete]);
+  }, [telemetryOptIn, selectedZone, addScan, onScanComplete]);
 
-  // ── File upload / camera photo handler ────────────────────────────────────
+  // File upload handler
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -103,7 +117,7 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
     e.target.value = '';
   };
 
-  // ── Live Camera Stream ────────────────────────────────────────────────────
+  // Live Camera Stream
   const startLiveCamera = async (facing: 'environment' | 'user' = cameraFacing) => {
     try {
       if (cameraStream) {
@@ -127,7 +141,6 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
       setCameraFacing(facing);
       setCameraOpen(true);
     } catch {
-      // Fallback: prompt native device camera input
       cameraInputRef.current?.click();
     }
   };
@@ -166,6 +179,7 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
     setCurrentResult(null);
     setScanError(null);
     setActiveImageUrl(null);
+    setScanLoggedNotice(false);
     stopLiveCamera();
   };
 
@@ -181,20 +195,55 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#10B981]/20 border border-[#10B981]/30 text-[#34D399] text-xs font-semibold uppercase tracking-wider mb-2">
               <Sparkles className="w-3.5 h-3.5" />
-              Gemini Vision AI · Real-Time Precision Engine
+              {t.scannerHeaderBadge}
             </div>
-            <h2 className="text-xl sm:text-2xl font-bold tracking-tight">Point. Scan. Understand.</h2>
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight">{t.scannerHeaderTitle}</h2>
             <p className="text-emerald-100/70 text-sm mt-1">
-              Capture or upload any real waste item — Gemini AI inspects material composition, contamination, and gives certified disposal guidance.
+              {t.scannerHeaderDesc}
             </p>
           </div>
 
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border shrink-0 bg-emerald-500/20 border-emerald-400/30 text-emerald-200">
             <CheckCircle2 className="w-3.5 h-3.5 text-[#34D399]" />
-            AI Precision Active
+            Active 2-Zone AI
           </div>
         </div>
       </div>
+
+      {/* Zone Selector Bar before scanning */}
+      <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2 font-bold text-gray-800">
+          <MapPin className="w-4 h-4 text-[#10B981]" />
+          <span>{t.scannerSelectZone}:</span>
+        </div>
+        <select
+          value={selectedZone}
+          onChange={(e) => setSelectedZone(e.target.value)}
+          className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl font-semibold text-gray-900 focus:ring-2 focus:ring-[#10B981] outline-none cursor-pointer"
+        >
+          {AVAILABLE_ZONES.map((z) => (
+            <option key={z} value={z}>
+              {z}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Success Notification When Scan Logged */}
+      {scanLoggedNotice && (
+        <div className="bg-emerald-50 border border-emerald-300 rounded-xl p-3.5 flex items-center justify-between text-xs text-emerald-900 animate-in fade-in duration-300 shadow-xs">
+          <div className="flex items-center gap-2 font-bold">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{t.scannerSuccessLogged} ({selectedZone})</span>
+          </div>
+          <button
+            onClick={() => onNavigate && onNavigate('analytics')}
+            className="text-emerald-800 underline font-bold hover:text-emerald-950 cursor-pointer"
+          >
+            View Telemetry →
+          </button>
+        </div>
+      )}
 
       {/* ── Main layout ───────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
@@ -288,7 +337,7 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
                   className="px-6 py-3 rounded-full bg-[#10B981] hover:bg-[#059669] text-[#0F2E23] font-black text-sm shadow-2xl flex items-center gap-2 transform hover:scale-105 transition-all cursor-pointer"
                 >
                   <Camera className="w-5 h-5 text-[#0F2E23]" />
-                  Capture & Analyze
+                  {t.scannerCapture}
                 </button>
 
                 <button
@@ -310,7 +359,7 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
             )}
           </div>
 
-          {/* ── Action Buttons ────────────────────────────────────────────── */}
+          {/* Action Buttons */}
           <div className="p-4 bg-gray-50 border-t border-gray-100 space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {/* BUTTON 1: Open Live Camera */}
@@ -324,7 +373,7 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
                 }`}
               >
                 <Camera className="w-4 h-4" />
-                <span>{cameraOpen ? 'Close Camera' : 'Live Camera'}</span>
+                <span>{cameraOpen ? t.scannerCloseCamera : t.scannerLiveCamera}</span>
               </button>
 
               {/* BUTTON 2: Upload or Snap Photo */}
@@ -334,7 +383,7 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
                 className="py-3 px-4 rounded-xl bg-[#0F2E23] hover:bg-[#154233] text-white font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer disabled:opacity-50"
               >
                 <Upload className="w-4 h-4 text-[#10B981]" />
-                <span>Upload / Snap Photo</span>
+                <span>{t.scannerUpload}</span>
               </button>
             </div>
 
@@ -347,7 +396,7 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
                   className="text-xs text-gray-600 hover:text-gray-900 font-semibold flex items-center gap-1.5 cursor-pointer py-1 px-2 rounded-lg hover:bg-gray-200 transition-all"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
-                  Clear & Scan New Item
+                  {t.scannerClear}
                 </button>
               </div>
             )}
@@ -361,10 +410,10 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
                   onChange={(e) => setTelemetryOptIn(e.target.checked)}
                   className="w-4 h-4 rounded accent-[#10B981]"
                 />
-                Contribute anonymized scan to Community Intelligence
+                <span>{t.scannerTelemetryCheck}</span>
               </label>
               <span className="inline-flex items-center gap-1 text-[#154233] font-medium">
-                <ShieldCheck className="w-4 h-4 text-[#10B981]" /> Privacy Secured
+                <ShieldCheck className="w-4 h-4 text-[#10B981]" /> {t.scannerPrivacy}
               </span>
             </div>
           </div>
@@ -396,7 +445,7 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
                 <RefreshCw className="w-6 h-6" />
               </div>
               <div>
-                <h4 className="text-lg font-bold text-gray-900">Gemini Vision AI Inspecting…</h4>
+                <h4 className="text-lg font-bold text-gray-900">AI Vision Inspecting…</h4>
                 <p className="text-sm text-gray-500 mt-1">{scanStepText}</p>
               </div>
               <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
@@ -416,7 +465,7 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
             </div>
           )}
 
-          {/* Multi-object detected selector */}
+          {/* Multi-object selector */}
           {!isScanning && currentResult && currentResult.objects.length > 1 && (
             <div className="bg-[#0F2E23]/5 p-3 rounded-xl border border-[#0F2E23]/10">
               <div className="text-xs font-bold uppercase text-[#0F2E23] mb-2 flex items-center justify-between">
@@ -448,7 +497,7 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
               result={currentResult}
               activeObject={selectedObject}
               onScanAnother={rescan}
-              onFindCollectionPoint={() => (onNavigate ? onNavigate('map') : undefined)}
+              onViewCommunity={() => onNavigate && onNavigate('analytics')}
             />
           )}
 
@@ -459,9 +508,9 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
                 <Eye className="w-7 h-7" />
               </div>
               <div>
-                <h3 className="font-bold text-gray-900 text-lg">Ready to Scan</h3>
+                <h3 className="font-bold text-gray-900 text-lg">Ready to Scan Waste</h3>
                 <p className="text-sm text-gray-500 mt-1 max-w-sm mx-auto">
-                  Click <strong>Live Camera</strong> for a live video scanner, or <strong>Upload / Snap Photo</strong> to analyze any picture.
+                  Click <strong>Live Camera</strong> or <strong>Upload Photo</strong>. The AI will classify material, prescribe disposal steps, and increment Kokan & NSP/Virar telemetry.
                 </p>
               </div>
             </div>

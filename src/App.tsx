@@ -5,15 +5,16 @@ import Footer from './components/layout/Footer';
 import LandingPage from './pages/LandingPage';
 import ScannerInterface from './components/scanner/ScannerInterface';
 import AnalyticsView from './components/analytics/AnalyticsView';
-import WasteMap from './components/map/WasteMap';
-import PredictionsView from './components/predictions/PredictionsView';
 import EcoCopilotChat from './components/copilot/EcoCopilotChat';
 import ReportForm from './components/report/ReportForm';
 import ChallengesView from './components/challenges/ChallengesView';
 import DashboardView from './components/dashboard/DashboardView';
+import LoginModal from './components/auth/LoginModal';
+import { EcoProvider, useEco } from './context/EcoContext';
 
-export function App() {
+function AppContent() {
   const [activeTab, setActiveTab] = useState<string>('home');
+  const { t } = useEco();
 
   const handleNavigate = (tab: string) => {
     setActiveTab(tab);
@@ -28,9 +29,9 @@ export function App() {
         return (
           <div className="pt-2 space-y-6">
             <div className="text-center space-y-1.5 max-w-xl mx-auto">
-              <h1 className="text-3xl font-extrabold text-[#0F2E23]">AI Waste Intelligence Scanner</h1>
+              <h1 className="text-3xl font-extrabold text-[#0F2E23]">{t.navScanner}</h1>
               <p className="text-xs text-gray-600">
-                Point your camera or upload any waste item to get instant AI material analysis and certified disposal guidance.
+                {t.scannerHeaderDesc}
               </p>
             </div>
             <ScannerInterface onNavigate={handleNavigate} />
@@ -38,14 +39,10 @@ export function App() {
         );
       case 'analytics':
         return <AnalyticsView />;
-      case 'map':
-        return <WasteMap />;
-      case 'predictions':
-        return <PredictionsView />;
       case 'copilot':
         return <EcoCopilotChat />;
       case 'report':
-        return <ReportForm onNavigateToMap={() => handleNavigate('map')} />;
+        return <ReportForm />;
       case 'challenges':
         return <ChallengesView />;
       case 'dashboard':
@@ -57,6 +54,9 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-[#FBFBFA] text-[#111827] flex flex-col font-['Plus_Jakarta_Sans',sans-serif]">
+      {/* Auth / Login Modal */}
+      <LoginModal />
+
       {/* Sticky Header Navbar */}
       <Navbar activeTab={activeTab} setActiveTab={handleNavigate} />
 
@@ -71,6 +71,14 @@ export function App() {
       {/* Mobile Bottom Navigation */}
       <MobileNav activeTab={activeTab} setActiveTab={handleNavigate} />
     </div>
+  );
+}
+
+export function App() {
+  return (
+    <EcoProvider>
+      <AppContent />
+    </EcoProvider>
   );
 }
 

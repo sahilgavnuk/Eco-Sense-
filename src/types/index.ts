@@ -92,7 +92,6 @@ export interface ZoneMetric {
   scansThisMonth: number;
   segregationRate: number; // %
   activeIssues: number;
-  collectionReliability: number; // %
   dominantCategory: string;
 }
 
@@ -125,3 +124,11 @@ export interface EcoScore {
 }
 
 export type UserRole = 'Resident' | 'Coordinator' | 'Administrator';
+
+export interface UserProfile {
+  name: string;
+  email: string;
+  zone: string;
+  role: UserRole;
+  isLoggedIn: boolean;
+}

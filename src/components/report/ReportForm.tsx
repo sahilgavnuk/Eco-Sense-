@@ -1,24 +1,23 @@
-import { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Camera, MapPin, Upload, CheckCircle2, ShieldAlert, Sparkles, ThumbsUp,
-  Clock, Image as ImageIcon
+  Clock, Image as ImageIcon, Database
 } from 'lucide-react';
 import type { WasteReport, IssueType, IssueSeverity } from '../../types';
-import { MOCK_REPORTS } from '../../data/mockData';
+import { useEco } from '../../context/EcoContext';
+import { AVAILABLE_ZONES } from '../../data/mockData';
 
-interface ReportFormProps {
-  onNavigateToMap?: () => void;
-}
+export const ReportForm: React.FC = () => {
+  const { reports, addReport, updateReportStatus, currentUser, t } = useEco();
 
-export const ReportForm: React.FC<ReportFormProps> = ({ onNavigateToMap }) => {
-  const [reports, setReports] = useState<WasteReport[]>(MOCK_REPORTS);
   const [issueType, setIssueType] = useState<IssueType>('Garbage Accumulation');
   const [description, setDescription] = useState<string>('');
+  const [selectedZone, setSelectedZone] = useState<string>(currentUser.zone || AVAILABLE_ZONES[1]);
   const [photoUrl, setPhotoUrl] = useState<string>(
     'https://images.unsplash.com/photo-1530587191325-3db32d826c18?auto=format&fit=crop&w=800&q=80'
   );
   const [locationStatus, setLocationStatus] = useState<string>(
-    '37.7749 N, 122.4194 W (Zone 2 — Central District)'
+    '19.4184 N, 72.8123 E (Zone 2 — NSP East Station Sector)'
   );
   const [isLocating, setIsLocating] = useState<boolean>(false);
   const [gpsLocked, setGpsLocked] = useState<boolean>(false);
@@ -38,20 +37,24 @@ export const ReportForm: React.FC<ReportFormProps> = ({ onNavigateToMap }) => {
           setIsLocating(false);
           setGpsLocked(true);
           setLocationStatus(
-            `${pos.coords.latitude.toFixed(4)} N, ${pos.coords.longitude.toFixed(4)} W (GPS Verified)`
+            `${pos.coords.latitude.toFixed(4)} N, ${pos.coords.longitude.toFixed(4)} E (GPS Verified · ${selectedZone})`
           );
         },
         () => {
           setIsLocating(false);
           setGpsLocked(true);
-          setLocationStatus('37.7749 N, -122.4194 W (Simulated GPS: Zone 2)');
+          setLocationStatus(
+            selectedZone.includes('Kokan')
+              ? '18.1500 N, 73.0000 E (GPS: Kokan Region)'
+              : '19.4184 N, 72.8123 E (GPS: NSP/Virar)'
+          );
         },
         { timeout: 8000 }
       );
     } else {
       setIsLocating(false);
       setGpsLocked(true);
-      setLocationStatus('37.7749 N, -122.4194 W (Zone 2 — Central District)');
+      setLocationStatus('19.4184 N, 72.8123 E (Zone Verified)');
     }
   };
 
@@ -88,10 +91,10 @@ export const ReportForm: React.FC<ReportFormProps> = ({ onNavigateToMap }) => {
         severity,
         status: 'AI Analysis',
         location: {
-          lat: 37.7749 + (Math.random() - 0.5) * 0.02,
-          lng: -122.4194 + (Math.random() - 0.5) * 0.02,
-          address: 'Market St & 4th Ave, Central District',
-          zone: 'Zone 2 — Central District'
+          lat: selectedZone.includes('Kokan') ? 18.15 : 19.42,
+          lng: selectedZone.includes('Kokan') ? 73.0 : 72.81,
+          address: selectedZone.includes('Kokan') ? 'Coastal Main Road, Kokan' : 'Station Road & Bypass, NSP/Virar',
+          zone: selectedZone
         },
         photoUrl,
         description: description.trim() || 'Reported waste issue requiring municipal review.',
@@ -99,24 +102,21 @@ export const ReportForm: React.FC<ReportFormProps> = ({ onNavigateToMap }) => {
           detectedIssue: `${issueType} detected`,
           severityScore: severity === 'HIGH' ? 92 : severity === 'MEDIUM' ? 68 : 45,
           confidence: 96,
-          interpretation: `AI model identified ${issueType.toLowerCase()} with high volume confidence. Priority dispatch logged for Zone 2 municipal route.`
+          interpretation: `AI model confirmed ${issueType.toLowerCase()} with high volume density. Priority alert dispatched for ${selectedZone}.`
         },
         residentConfirmed: false,
         clusterCount: Math.floor(Math.random() * 4) + 1
       };
 
+      // Add to global state & persistent localStorage
+      addReport(newReport);
       setSubmittedReport(newReport);
-      setReports((prev) => [newReport, ...prev]);
       setDescription('');
-    }, 1200);
+    }, 1000);
   };
 
   const handleConfirmResolved = (reportId: string) => {
-    setReports((prev) =>
-      prev.map((r) =>
-        r.id === reportId ? { ...r, status: 'Resolved', residentConfirmed: true } : r
-      )
-    );
+    updateReportStatus(reportId, 'Resolved');
     if (submittedReport && submittedReport.id === reportId) {
       setSubmittedReport({ ...submittedReport, status: 'Resolved', residentConfirmed: true });
     }
@@ -132,14 +132,27 @@ export const ReportForm: React.FC<ReportFormProps> = ({ onNavigateToMap }) => {
       {/* Header */}
       <div className="text-center space-y-2">
         <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold uppercase tracking-wider">
-          <ShieldAlert className="w-4 h-4 text-rose-600" /> Smart Geospatial Waste Reporting
+          <ShieldAlert className="w-4 h-4 text-rose-600" /> {t.reportBadge}
         </div>
         <h2 className="text-3xl font-extrabold text-[#0F2E23] tracking-tight">
-          See a problem? Put it on the map.
+          {t.reportTitle}
         </h2>
         <p className="text-gray-600 max-w-2xl mx-auto text-sm">
-          Report uncollected garbage, illegal dumping, or bin overflows. EcoSense AI automatically analyzes severity, flags spatial clusters, and dispatches city services.
+          {t.reportDesc}
         </p>
+      </div>
+
+      {/* Storage Architecture Clarification Box */}
+      <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-4 flex items-start gap-3 text-xs text-emerald-950 shadow-xs">
+        <Database className="w-5 h-5 text-[#10B981] shrink-0 mt-0.5" />
+        <div className="space-y-1">
+          <div className="font-bold text-emerald-900 flex items-center gap-1.5">
+            <span>डेटा साठवणूक व स्थानिक सुरक्षा (Data Storage Architecture)</span>
+          </div>
+          <p className="text-emerald-800 leading-relaxed">
+            {t.reportStorageNotice}
+          </p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -150,36 +163,54 @@ export const ReportForm: React.FC<ReportFormProps> = ({ onNavigateToMap }) => {
               <ShieldAlert className="w-4 h-4 text-[#10B981]" />
               New Incident Report
             </h3>
-            <span className="text-[11px] font-mono text-gray-500">Form ID: INC-2026</span>
+            <span className="text-[11px] font-mono text-gray-500">2-Zone Dispatch Form</span>
           </div>
 
           <form onSubmit={handleReportSubmit} className="space-y-5">
+            {/* Zone Selection */}
+            <div className="space-y-2">
+              <label className="block text-xs font-bold uppercase text-gray-700">
+                {t.loginZoneLabel} <span className="text-rose-500">*</span>
+              </label>
+              <select
+                value={selectedZone}
+                onChange={(e) => setSelectedZone(e.target.value)}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 focus:ring-2 focus:ring-[#10B981] outline-none cursor-pointer"
+              >
+                {AVAILABLE_ZONES.map((z) => (
+                  <option key={z} value={z}>
+                    {z}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {/* Issue Category */}
             <div className="space-y-2">
               <label className="block text-xs font-bold uppercase text-gray-700">
-                Issue Category <span className="text-rose-500">*</span>
+                {t.reportCategory} <span className="text-rose-500">*</span>
               </label>
               <select
                 value={issueType}
                 onChange={(e) => setIssueType(e.target.value as IssueType)}
                 className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-gray-900 focus:ring-2 focus:ring-[#10B981] focus:border-[#10B981] outline-none transition-all cursor-pointer"
               >
-                <option value="Garbage Accumulation">Garbage Accumulation</option>
-                <option value="Overflowing Bin">Overflowing Bin</option>
-                <option value="Illegal Dumping">Illegal Dumping</option>
-                <option value="Missed Collection">Missed Collection / Collection Truck Skipping</option>
-                <option value="Improper Segregation">Improper Segregation</option>
-                <option value="Other">Other Waste Problem</option>
+                <option value="Garbage Accumulation">Garbage Accumulation (कचरा साचणे)</option>
+                <option value="Overflowing Bin">Overflowing Bin (कचराकुंडी ओसंडून वाहणे)</option>
+                <option value="Illegal Dumping">Illegal Dumping (उघड्यावर कचरा टाकणे)</option>
+                <option value="Missed Collection">Missed Collection (गाडी न येणे)</option>
+                <option value="Improper Segregation">Improper Segregation (कचरा न वेगळा करणे)</option>
+                <option value="Other">Other Waste Issue (इतर समस्या)</option>
               </select>
             </div>
 
-            {/* Photo Attachment with Real Device Camera & File Input */}
+            {/* Photo Attachment */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-bold uppercase text-gray-700">
-                  Incident Photo Proof <span className="text-rose-500">*</span>
+                  {t.reportPhoto} <span className="text-rose-500">*</span>
                 </label>
-                <span className="text-[10px] text-gray-500 font-medium">Capture or upload real photo</span>
+                <span className="text-[10px] text-gray-500 font-medium">Camera or file upload</span>
               </div>
 
               <div className="border-2 border-dashed border-gray-200 hover:border-[#10B981] bg-gray-50 rounded-xl p-4 text-center transition-all space-y-3">
@@ -207,14 +238,13 @@ export const ReportForm: React.FC<ReportFormProps> = ({ onNavigateToMap }) => {
                   </div>
                 </div>
 
-                {/* Real Camera & File Upload Buttons */}
                 <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
                   <button
                     type="button"
                     onClick={() => cameraInputRef.current?.click()}
                     className="px-3.5 py-2 bg-[#0F2E23] hover:bg-[#154233] text-white text-xs font-bold rounded-xl shadow-sm flex items-center gap-1.5 transition-all cursor-pointer"
                   >
-                    <Camera className="w-3.5 h-3.5 text-[#10B981]" /> Take Photo
+                    <Camera className="w-3.5 h-3.5 text-[#10B981]" /> {t.reportTakePhoto}
                   </button>
 
                   <button
@@ -222,7 +252,7 @@ export const ReportForm: React.FC<ReportFormProps> = ({ onNavigateToMap }) => {
                     onClick={() => fileInputRef.current?.click()}
                     className="px-3.5 py-2 bg-white hover:bg-gray-100 text-gray-800 text-xs font-bold rounded-xl border border-gray-200 shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
                   >
-                    <Upload className="w-3.5 h-3.5 text-blue-600" /> Upload File
+                    <Upload className="w-3.5 h-3.5 text-blue-600" /> {t.reportUploadFile}
                   </button>
 
                   <button
@@ -231,13 +261,11 @@ export const ReportForm: React.FC<ReportFormProps> = ({ onNavigateToMap }) => {
                       setPhotoUrl('https://images.unsplash.com/photo-1611284446314-60a58ac0deb9?auto=format&fit=crop&w=800&q=80')
                     }
                     className="px-2.5 py-2 text-gray-600 hover:text-gray-900 text-xs font-semibold rounded-lg hover:bg-gray-100 transition-all cursor-pointer flex items-center gap-1"
-                    title="Use sample overflow photo"
                   >
                     <ImageIcon className="w-3.5 h-3.5" /> Sample
                   </button>
                 </div>
 
-                {/* Hidden input elements */}
                 <input
                   type="file"
                   ref={cameraInputRef}
@@ -256,10 +284,10 @@ export const ReportForm: React.FC<ReportFormProps> = ({ onNavigateToMap }) => {
               </div>
             </div>
 
-            {/* Geolocation with Interactive Lock */}
+            {/* Geolocation */}
             <div className="space-y-2">
               <label className="block text-xs font-bold uppercase text-gray-700">
-                Geospatial Location
+                {t.reportLocation}
               </label>
               <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 p-3 rounded-xl text-xs text-gray-700">
                 <MapPin className={`w-4 h-4 shrink-0 ${gpsLocked ? 'text-[#10B981]' : 'text-amber-500'}`} />
@@ -271,7 +299,7 @@ export const ReportForm: React.FC<ReportFormProps> = ({ onNavigateToMap }) => {
                   className="px-3 py-1.5 bg-[#10B981] hover:bg-[#059669] text-white font-bold rounded-lg transition-all text-xs cursor-pointer disabled:opacity-50 shrink-0 shadow-xs flex items-center gap-1"
                 >
                   <MapPin className="w-3 h-3" />
-                  {isLocating ? 'Locating...' : gpsLocked ? 'GPS Verified ✓' : 'Lock GPS'}
+                  {isLocating ? 'Locating...' : gpsLocked ? 'GPS Verified ✓' : t.reportLocateBtn}
                 </button>
               </div>
             </div>
@@ -279,13 +307,13 @@ export const ReportForm: React.FC<ReportFormProps> = ({ onNavigateToMap }) => {
             {/* Description */}
             <div className="space-y-2">
               <label className="block text-xs font-bold uppercase text-gray-700">
-                Issue Description
+                {t.reportDescription}
               </label>
               <textarea
                 rows={3}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Provide details (e.g. 15+ uncollected bags blocking pedestrian ramp near crosswalk)..."
+                placeholder="Provide location landmark and details (e.g. Near Station Road platform 1 corner)..."
                 className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:ring-2 focus:ring-[#10B981] outline-none transition-all resize-none"
               ></textarea>
             </div>
@@ -298,11 +326,11 @@ export const ReportForm: React.FC<ReportFormProps> = ({ onNavigateToMap }) => {
             >
               {analyzingAi ? (
                 <>
-                  <Sparkles className="w-4 h-4 animate-spin text-[#10B981]" /> Running AI Vision Severity Assessment...
+                  <Sparkles className="w-4 h-4 animate-spin text-[#10B981]" /> Running AI Severity Assessment...
                 </>
               ) : (
                 <>
-                  <ShieldAlert className="w-4 h-4 text-[#10B981]" /> Submit Report to EcoSense Map
+                  <ShieldAlert className="w-4 h-4 text-[#10B981]" /> {t.reportSubmitBtn}
                 </>
               )}
             </button>
@@ -325,14 +353,14 @@ export const ReportForm: React.FC<ReportFormProps> = ({ onNavigateToMap }) => {
                 <div className="font-bold text-emerald-200">AI Visual Analysis Result</div>
                 <p className="text-emerald-100">{submittedReport.aiAnalysis.interpretation}</p>
                 <div className="text-[10px] text-emerald-300 font-mono mt-1">
-                  Confidence: {submittedReport.aiAnalysis.confidence}% | Severity Score: {submittedReport.aiAnalysis.severityScore}/100
+                  Confidence: {submittedReport.aiAnalysis.confidence}% | Zone: {submittedReport.location.zone}
                 </div>
               </div>
 
               {/* TIMELINE PROGRESS TRACKER */}
               <div className="pt-2">
                 <div className="text-xs font-bold text-gray-300 mb-3 flex items-center justify-between">
-                  <span>Report Resolution Timeline</span>
+                  <span>{t.reportTimelineTitle}</span>
                   <span className="text-[10px] font-mono text-emerald-400">Live Status</span>
                 </div>
                 <div className="flex items-center justify-between text-[11px] font-semibold text-center relative">
@@ -353,27 +381,18 @@ export const ReportForm: React.FC<ReportFormProps> = ({ onNavigateToMap }) => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 pt-1">
+              <div className="pt-1">
                 {submittedReport.status !== 'Resolved' ? (
                   <button
                     onClick={() => handleConfirmResolved(submittedReport.id)}
-                    className="py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow transition-all cursor-pointer"
+                    className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow transition-all cursor-pointer"
                   >
-                    <ThumbsUp className="w-3.5 h-3.5" /> Confirm Resolved
+                    <ThumbsUp className="w-3.5 h-3.5" /> {t.reportConfirmResolved}
                   </button>
                 ) : (
                   <div className="py-2.5 bg-emerald-950/60 text-emerald-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 border border-emerald-500/40">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-[#10B981]" /> Verified Resolved
+                    <CheckCircle2 className="w-3.5 h-3.5 text-[#10B981]" /> {t.reportResolved}
                   </div>
-                )}
-
-                {onNavigateToMap && (
-                  <button
-                    onClick={onNavigateToMap}
-                    className="py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 border border-white/15 transition-all cursor-pointer"
-                  >
-                    <MapPin className="w-3.5 h-3.5 text-[#10B981]" /> View on Waste Map
-                  </button>
                 )}
               </div>
             </div>
@@ -383,8 +402,8 @@ export const ReportForm: React.FC<ReportFormProps> = ({ onNavigateToMap }) => {
           <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-md space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 pb-3">
               <div>
-                <h3 className="font-extrabold text-gray-900 text-base">Active Community Reports</h3>
-                <p className="text-xs text-gray-500">{reports.length} total logged incidents</p>
+                <h3 className="font-extrabold text-gray-900 text-base">{t.reportFeedTitle}</h3>
+                <p className="text-xs text-gray-500">{reports.length} total logged incidents (Saved Locally)</p>
               </div>
 
               {/* Filter Tabs */}
@@ -420,8 +439,8 @@ export const ReportForm: React.FC<ReportFormProps> = ({ onNavigateToMap }) => {
                         </span>
                       </div>
                       <h4 className="font-bold text-gray-900 text-sm mt-0.5">{report.issueType}</h4>
-                      <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
-                        <MapPin className="w-3 h-3 text-[#10B981]" /> {report.location.address}
+                      <p className="text-xs text-gray-600 flex items-center gap-1 mt-0.5 font-medium">
+                        <MapPin className="w-3 h-3 text-[#10B981]" /> {report.location.address} ({report.location.zone})
                       </p>
                     </div>
 
@@ -453,11 +472,11 @@ export const ReportForm: React.FC<ReportFormProps> = ({ onNavigateToMap }) => {
                         onClick={() => handleConfirmResolved(report.id)}
                         className="text-[11px] text-emerald-700 hover:text-emerald-900 font-bold hover:underline flex items-center gap-1 cursor-pointer"
                       >
-                        <ThumbsUp className="w-3 h-3" /> Mark Resolved
+                        <ThumbsUp className="w-3 h-3" /> {t.reportConfirmResolved}
                       </button>
                     ) : (
                       <span className="text-[11px] text-emerald-600 font-bold flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" /> Resolved
+                        <CheckCircle2 className="w-3 h-3" /> {t.reportResolved}
                       </span>
                     )}
                   </div>

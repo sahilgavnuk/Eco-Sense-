@@ -1,10 +1,14 @@
+import React from 'react';
 import { Leaf, ShieldCheck, Heart } from 'lucide-react';
+import { useEco } from '../../context/EcoContext';
 
 interface FooterProps {
   onNavigate?: (tab: string) => void;
 }
 
 export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
+  const { t } = useEco();
+
   const handleNav = (tab: string) => {
     if (onNavigate) {
       onNavigate(tab);
@@ -25,10 +29,10 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               <div className="w-8 h-8 rounded-lg bg-[#10B981] text-[#0F2E23] flex items-center justify-center font-bold group-hover:scale-105 transition-all">
                 <Leaf className="w-4 h-4" />
               </div>
-              <span className="font-extrabold text-white text-lg tracking-tight">EcoSense AI</span>
+              <span className="font-extrabold text-white text-lg tracking-tight">{t.brandTitle} AI</span>
             </div>
             <p className="text-emerald-100/70 max-w-sm leading-relaxed">
-              AI-Powered Community Waste Intelligence Platform. Transforming everyday waste scanning into community dataset telemetry, geospatial analytics, and predictive action.
+              AI-Powered Community Waste Intelligence Platform serving Zone 1 (Kokan Region) and Zone 2 (NSP East/West & Virar).
             </p>
             <div className="flex items-center gap-2 text-[#10B981] font-semibold">
               <ShieldCheck className="w-4 h-4" /> Anonymized Privacy-First Architecture
@@ -44,7 +48,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                   onClick={() => handleNav('scanner')}
                   className="hover:text-white hover:underline transition-all cursor-pointer text-left"
                 >
-                  AI Waste Scanner
+                  {t.navScanner}
                 </button>
               </li>
               <li>
@@ -52,23 +56,15 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                   onClick={() => handleNav('analytics')}
                   className="hover:text-white hover:underline transition-all cursor-pointer text-left"
                 >
-                  Community Intelligence
+                  {t.navCommunity}
                 </button>
               </li>
               <li>
                 <button
-                  onClick={() => handleNav('map')}
+                  onClick={() => handleNav('challenges')}
                   className="hover:text-white hover:underline transition-all cursor-pointer text-left"
                 >
-                  Geospatial Waste Map
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => handleNav('predictions')}
-                  className="hover:text-white hover:underline transition-all cursor-pointer text-left"
-                >
-                  Predictive Analytics
+                  {t.navEcoScore}
                 </button>
               </li>
               <li>
@@ -76,7 +72,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                   onClick={() => handleNav('copilot')}
                   className="hover:text-white hover:underline transition-all cursor-pointer text-left"
                 >
-                  EcoSense Copilot
+                  {t.navCopilot}
                 </button>
               </li>
               <li>
@@ -84,7 +80,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                   onClick={() => handleNav('report')}
                   className="hover:text-white hover:underline transition-all cursor-pointer text-left"
                 >
-                  Report Incident
+                  {t.navReport}
                 </button>
               </li>
             </ul>
@@ -92,32 +88,32 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
 
           {/* Col 3 */}
           <div className="space-y-2">
-            <h4 className="font-bold text-emerald-300 uppercase tracking-wider text-[11px]">Technology Stack</h4>
+            <h4 className="font-bold text-emerald-300 uppercase tracking-wider text-[11px]">Covered Zones</h4>
             <ul className="space-y-1.5 text-gray-300">
               <li className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]"></span>
-                <span>Google Gemini 3.8 Flash Vision</span>
+                <span>Zone 1 — Kokan Region</span>
               </li>
               <li className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]"></span>
-                <span>Leaflet GIS OpenStreetMap</span>
+                <span>Zone 2 — NSP East/West & Virar</span>
+              </li>
+              <li className="flex items-center gap-1.5 pt-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                <span>Gemini Vision AI Engine</span>
               </li>
               <li className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]"></span>
-                <span>Vercel Edge Functions</span>
-              </li>
-              <li className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]"></span>
-                <span>Recharts Analytical Engine</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                <span>CPCB Recycling Standards</span>
               </li>
             </ul>
           </div>
         </div>
 
         <div className="flex flex-col sm:flex-row items-center justify-between text-xs text-gray-400 gap-4">
-          <p>© 2026 EcoSense AI Platform Inc. All rights reserved.</p>
+          <p>© 2026 EcoSense AI Platform. All rights reserved.</p>
           <p className="flex items-center gap-1">
-            Built with <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" /> for cleaner communities.
+            Built with <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" /> for Kokan & NSP/Virar.
           </p>
         </div>
       </div>

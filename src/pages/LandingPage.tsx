@@ -1,28 +1,31 @@
 import React from 'react';
-import { Camera, Sparkles, ArrowRight, Layers, BarChart3, MapPin, TrendingUp, Bot } from 'lucide-react';
+import { Camera, Sparkles, ArrowRight, Layers, BarChart3, Bot, ShieldAlert } from 'lucide-react';
 import ScannerInterface from '../components/scanner/ScannerInterface';
+import { useEco } from '../context/EcoContext';
 
 interface LandingPageProps {
   onNavigate: (tab: string) => void;
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
+  const { t } = useEco();
+
   return (
     <div className="space-y-16 sm:space-y-24 pb-12">
       {/* HERO SECTION — SCANNER FIRST */}
       <section className="relative pt-6 pb-12">
         <div className="text-center space-y-4 max-w-4xl mx-auto mb-10 px-4">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#10B981]/15 border border-[#10B981]/30 text-[#0F2E23] text-xs font-extrabold uppercase tracking-wider shadow-xs">
-            <Sparkles className="w-4 h-4 text-[#10B981]" /> The AI Waste Intelligence Platform
+            <Sparkles className="w-4 h-4 text-[#10B981]" /> {t.heroBadge}
           </div>
 
           <h1 className="text-4xl sm:text-6xl font-black text-[#0F2E23] tracking-tight leading-[1.1]">
-            Waste is everywhere. <br className="hidden sm:block" />
-            <span className="text-[#10B981]">Insight shouldn't be.</span>
+            {t.heroTitle1} <br className="hidden sm:block" />
+            <span className="text-[#10B981]">{t.heroTitle2}</span>
           </h1>
 
           <p className="text-base sm:text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed">
-            Scan any waste item with AI, understand what it is, discover how to dispose of it correctly, and help your community build smarter waste intelligence.
+            {t.heroSubtitle}
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
@@ -33,14 +36,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
               }}
               className="px-6 py-3.5 bg-[#0F2E23] hover:bg-[#154233] text-white font-extrabold text-sm rounded-full shadow-xl flex items-center gap-2 transform hover:scale-105 transition-all cursor-pointer"
             >
-              <Camera className="w-5 h-5 text-[#10B981]" /> Scan Your Waste Now
+              <Camera className="w-5 h-5 text-[#10B981]" /> {t.heroScanBtn}
             </button>
 
             <button
               onClick={() => onNavigate('analytics')}
               className="px-6 py-3.5 bg-white hover:bg-gray-50 text-[#0F2E23] font-bold text-sm rounded-full border border-gray-300 shadow-sm flex items-center gap-2 transition-all cursor-pointer"
             >
-              <BarChart3 className="w-4 h-4 text-[#10B981]" /> Explore Community Intelligence
+              <BarChart3 className="w-4 h-4 text-[#10B981]" /> {t.heroExploreBtn}
             </button>
           </div>
         </div>
@@ -58,9 +61,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
       <section className="bg-white py-16 border-y border-gray-200/80">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
           <div className="text-center space-y-2 max-w-2xl mx-auto">
-            <span className="text-xs font-extrabold text-[#10B981] uppercase tracking-wider">01 — The Daily Waste Challenge</span>
-            <h2 className="text-3xl font-extrabold text-[#0F2E23]">Waste decisions happen every single day.</h2>
-            <p className="text-sm text-gray-600">Most residents face confusion at the bin. EcoSense AI eliminates guesswork.</p>
+            <span className="text-xs font-extrabold text-[#10B981] uppercase tracking-wider">{t.problemBadge}</span>
+            <h2 className="text-3xl font-extrabold text-[#0F2E23]">{t.problemTitle}</h2>
+            <p className="text-sm text-gray-600">{t.problemSubtitle}</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -90,13 +93,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12 relative z-10">
           <div className="text-center space-y-3 max-w-3xl mx-auto">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#10B981]/20 text-[#34D399] text-xs font-bold uppercase tracking-wider">
-              <Layers className="w-3.5 h-3.5" /> 02 — The Key Differentiation
+              <Layers className="w-3.5 h-3.5" /> 02 — 2-Zone Environmental Telemetry
             </span>
             <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
-              Every scan becomes community intelligence.
+              Every scan powers Kokan & NSP/Virar waste decisions.
             </h2>
             <p className="text-emerald-100/70 text-sm">
-              The scanner is not just an AI feature. It is a real-world waste data collection engine powering community decisions.
+              The scanner is not just an AI feature. It is a live data collection engine powering community decisions across Zone 1 (Kokan) and Zone 2 (NSP/Virar).
             </p>
           </div>
 
@@ -110,26 +113,26 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
 
             <div className="bg-white/10 p-5 rounded-2xl border border-white/10 space-y-2">
               <span className="text-xs font-bold text-emerald-400">STEP 02</span>
-              <h4 className="font-bold text-white text-sm">Anonymized Telemetry</h4>
-              <p className="text-[11px] text-emerald-100/70">Material category logged to zone dataset</p>
+              <h4 className="font-bold text-white text-sm">Zone Telemetry (+1)</h4>
+              <p className="text-[11px] text-emerald-100/70">Logged to Kokan or NSP/Virar dataset</p>
             </div>
 
             <div className="bg-white/10 p-5 rounded-2xl border border-white/10 space-y-2">
               <span className="text-xs font-bold text-emerald-400">STEP 03</span>
-              <h4 className="font-bold text-white text-sm">AI Analytics Engine</h4>
+              <h4 className="font-bold text-white text-sm">Community Analytics</h4>
               <p className="text-[11px] text-emerald-100/70">Identifies packaging surges & trends</p>
             </div>
 
             <div className="bg-[#10B981] text-[#0F2E23] p-5 rounded-2xl font-bold space-y-2 shadow-lg">
               <span className="text-xs uppercase text-[#0F2E23]/80">STEP 04</span>
               <h4 className="font-extrabold text-sm">Smarter Action</h4>
-              <p className="text-[11px] text-[#0F2E23]/90">Targeted awareness & municipal dispatch</p>
+              <p className="text-[11px] text-[#0F2E23]/90">Targeted awareness & cleaner zones</p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* SECTION 03 — PLATFORM MODULE TEASERS */}
+      {/* SECTION 03 — PLATFORM MODULE TEASERS (Map & Predictions removed) */}
       <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
         <div className="text-center space-y-2 max-w-2xl mx-auto">
           <span className="text-xs font-extrabold text-[#10B981] uppercase tracking-wider">03 — Comprehensive Ecosystem</span>
@@ -138,30 +141,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div
-            onClick={() => onNavigate('map')}
+            onClick={() => onNavigate('analytics')}
             className="p-6 rounded-2xl bg-white border border-gray-200 shadow-md hover:shadow-xl transition-all cursor-pointer space-y-3 group"
           >
             <div className="w-12 h-12 rounded-xl bg-emerald-50 text-[#10B981] flex items-center justify-center font-bold group-hover:scale-110 transition-all">
-              <MapPin className="w-6 h-6" />
+              <BarChart3 className="w-6 h-6" />
             </div>
-            <h3 className="font-bold text-gray-900 text-lg">Geospatial Waste Map</h3>
-            <p className="text-xs text-gray-600">Track active issue pins, bin overflows, and zone privacy shields on interactive Leaflet maps.</p>
+            <h3 className="font-bold text-gray-900 text-lg">2-Zone Intelligence</h3>
+            <p className="text-xs text-gray-600">Track total waste scans (150+), segregation indices, and category distributions for Kokan & NSP/Virar.</p>
             <span className="inline-flex items-center gap-1 text-xs font-bold text-[#10B981] pt-2">
-              Explore Map <ArrowRight className="w-3.5 h-3.5" />
-            </span>
-          </div>
-
-          <div
-            onClick={() => onNavigate('predictions')}
-            className="p-6 rounded-2xl bg-white border border-gray-200 shadow-md hover:shadow-xl transition-all cursor-pointer space-y-3 group"
-          >
-            <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold group-hover:scale-110 transition-all">
-              <TrendingUp className="w-6 h-6" />
-            </div>
-            <h3 className="font-bold text-gray-900 text-lg">Predictive Intelligence</h3>
-            <p className="text-xs text-gray-600">30-day waste generation forecasts and high-pressure zone alerts driven by ARIMA models.</p>
-            <span className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 pt-2">
-              View Forecasts <ArrowRight className="w-3.5 h-3.5" />
+              Explore Analytics <ArrowRight className="w-3.5 h-3.5" />
             </span>
           </div>
 
@@ -172,10 +161,24 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
             <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold group-hover:scale-110 transition-all">
               <Bot className="w-6 h-6" />
             </div>
-            <h3 className="font-bold text-gray-900 text-lg">Grounded Copilot</h3>
-            <p className="text-xs text-gray-600">AI assistant grounded in verified municipal recycling codes and material disposal standards.</p>
+            <h3 className="font-bold text-gray-900 text-lg">Professional AI Copilot</h3>
+            <p className="text-xs text-gray-600">Executive environmental engineering AI grounded in CPCB recycling codes and ISO standards.</p>
             <span className="inline-flex items-center gap-1 text-xs font-bold text-purple-600 pt-2">
-              Ask Copilot <ArrowRight className="w-3.5 h-3.5" />
+              Consult Copilot <ArrowRight className="w-3.5 h-3.5" />
+            </span>
+          </div>
+
+          <div
+            onClick={() => onNavigate('report')}
+            className="p-6 rounded-2xl bg-white border border-gray-200 shadow-md hover:shadow-xl transition-all cursor-pointer space-y-3 group"
+          >
+            <div className="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold group-hover:scale-110 transition-all">
+              <ShieldAlert className="w-6 h-6" />
+            </div>
+            <h3 className="font-bold text-gray-900 text-lg">Report Incident</h3>
+            <p className="text-xs text-gray-600">Capture real photos of garbage accumulation or overflowing bins with local storage persistence.</p>
+            <span className="inline-flex items-center gap-1 text-xs font-bold text-rose-600 pt-2">
+              Report Issue <ArrowRight className="w-3.5 h-3.5" />
             </span>
           </div>
         </div>
@@ -188,7 +191,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
           <span className="text-[#10B981]">Take smarter action.</span>
         </h2>
         <p className="text-emerald-100/70 text-sm max-w-xl mx-auto">
-          Join thousands of residents scanning waste daily to build cleaner, smarter communities.
+          Join residents across Kokan Region and NSP East/West & Virar in scanning waste daily to build cleaner communities.
         </p>
 
         <button

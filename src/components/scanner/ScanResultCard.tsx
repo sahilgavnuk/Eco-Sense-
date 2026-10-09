@@ -1,15 +1,23 @@
 import React from 'react';
-import { CheckCircle2, ArrowRight, MapPin, Recycle, BarChart3, RefreshCw, Info } from 'lucide-react';
+import { CheckCircle2, ArrowRight, Recycle, BarChart3, RefreshCw, Info } from 'lucide-react';
 import type { ScanResult, DetectedObject } from '../../types';
+import { useEco } from '../../context/EcoContext';
 
 interface ScanResultCardProps {
   result: ScanResult;
   activeObject: DetectedObject;
   onScanAnother: () => void;
-  onFindCollectionPoint?: () => void;
+  onViewCommunity?: () => void;
 }
 
-export const ScanResultCard: React.FC<ScanResultCardProps> = ({ result: _result, activeObject, onScanAnother, onFindCollectionPoint }) => {
+export const ScanResultCard: React.FC<ScanResultCardProps> = ({
+  result: _result,
+  activeObject,
+  onScanAnother,
+  onViewCommunity
+}) => {
+  const { t } = useEco();
+
   const getCategoryColor = (cat: string) => {
     switch (cat) {
       case 'Dry / Recyclable':
@@ -73,7 +81,7 @@ export const ScanResultCard: React.FC<ScanResultCardProps> = ({ result: _result,
       <div className="bg-[#0F2E23] text-white p-5 rounded-xl border border-[#154233] shadow-md space-y-3">
         <div className="flex items-center justify-between text-xs uppercase tracking-wider text-emerald-300 font-bold">
           <span className="flex items-center gap-1.5">
-            <Recycle className="w-4 h-4 text-[#10B981]" /> Recommended Action
+            <Recycle className="w-4 h-4 text-[#10B981]" /> {t.scannerRecommendation}
           </span>
           <span className="text-white/60 text-[10px]">EcoSense Protocol</span>
         </div>
@@ -100,7 +108,7 @@ export const ScanResultCard: React.FC<ScanResultCardProps> = ({ result: _result,
       <div className="bg-emerald-50/60 p-4 rounded-xl border border-emerald-100 text-xs text-gray-700 space-y-1.5">
         <div className="flex items-center gap-1.5 font-bold text-[#0F2E23]">
           <Info className="w-4 h-4 text-[#10B981]" />
-          <span>Why this recommendation? (Explainable AI)</span>
+          <span>{t.scannerExplainable}</span>
         </div>
         <p className="text-gray-600 leading-relaxed pl-5">
           {activeObject.whyExplanation}
@@ -108,11 +116,9 @@ export const ScanResultCard: React.FC<ScanResultCardProps> = ({ result: _result,
       </div>
 
       {/* Community Intelligence Telemetry Message */}
-      <div className="bg-gray-550/5 bg-gray-50 p-3 rounded-lg border border-gray-200/70 flex items-center gap-3 text-xs text-gray-600">
+      <div className="bg-gray-50 p-3 rounded-lg border border-gray-200/70 flex items-center gap-3 text-xs text-gray-600">
         <BarChart3 className="w-5 h-5 text-[#10B981] shrink-0" />
-        <div>
-          <span className="font-semibold text-gray-900">Community Intelligence Impact:</span> Every scan teaches EcoSense what your community throws away.
-        </div>
+        <div>{t.scannerImpact}</div>
       </div>
 
       {/* Actions */}
@@ -121,14 +127,14 @@ export const ScanResultCard: React.FC<ScanResultCardProps> = ({ result: _result,
           onClick={onScanAnother}
           className="px-4 py-2.5 bg-[#0F2E23] hover:bg-[#154233] text-white font-semibold text-xs rounded-xl flex items-center justify-center gap-2 shadow transition-all cursor-pointer"
         >
-          <RefreshCw className="w-3.5 h-3.5" /> Scan Another Item
+          <RefreshCw className="w-3.5 h-3.5" /> {t.scannerClear}
         </button>
 
         <button
-          onClick={() => onFindCollectionPoint ? onFindCollectionPoint() : window.location.hash = '#map'}
+          onClick={onViewCommunity}
           className="px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-[#0F2E23] font-semibold text-xs rounded-xl border border-emerald-200 flex items-center justify-center gap-2 transition-all cursor-pointer"
         >
-          <MapPin className="w-3.5 h-3.5 text-[#10B981]" /> Find Collection Point
+          <BarChart3 className="w-3.5 h-3.5 text-[#10B981]" /> {t.navCommunity}
         </button>
       </div>
     </div>
