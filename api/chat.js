@@ -3,9 +3,10 @@
 
 const CANDIDATE_MODELS = [
   'gemini-2.5-flash',
-  'gemini-2.0-flash-lite',
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
   'gemini-2.5-pro',
-  'gemini-3.8-flash'
+  'gemini-1.5-pro'
 ];
 
 const SYSTEM_INSTRUCTION = `You are EcoSense Copilot, a world-class, professional AI Environmental Engineer and Waste Management Specialist (covering Maharashtra: Zone 1 Kokan Region and Zone 2 NSP East/West & Virar).

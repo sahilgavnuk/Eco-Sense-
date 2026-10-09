@@ -1,12 +1,12 @@
 // api/scan.js — Vercel Serverless Function
-// High accuracy waste detection using Gemini 3.5 Flash & 3.6 Flash with auto-failover
+// High accuracy waste detection using Gemini Vision with multi-model failover
 
 const CANDIDATE_MODELS = [
-  'gemini-3.5-flash',
-  'gemini-3.5-flash-lite',
-  'gemini-3.6-flash',
-  'gemini-3.7-flash',
-  'gemini-3.8-flash'
+  'gemini-2.5-flash',
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+  'gemini-2.5-pro',
+  'gemini-1.5-pro'
 ];
 
 const SYSTEM_PROMPT = `You are EcoSense AI, an expert computer vision waste classification system.

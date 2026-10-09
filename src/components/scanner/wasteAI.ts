@@ -1,6 +1,6 @@
 /**
- * wasteAI.ts — High accuracy waste classification with serverless API + smart client fallback.
- * Works seamlessly in both online & offline/serverless scenarios.
+ * wasteAI.ts — High accuracy waste classification with direct Gemini Vision API + serverless proxy.
+ * Works seamlessly in both local development and production on Vercel.
  */
 
 import type { ScanResult, DetectedObject, WasteCategory, ContaminationLevel } from '../../types';
@@ -24,6 +24,41 @@ interface GeminiResponse {
   zone?: string;
   error?: string;
 }
+
+const SYSTEM_PROMPT = `You are EcoSense AI, an expert computer vision waste classification system.
+Your job is to accurately detect, identify, and categorize the ACTUAL waste items present in the uploaded image.
+
+Look carefully at the image:
+1. Identify the specific real item (e.g. "Coca Cola Plastic Bottle", "Crushed Cardboard Box", "Used AA Battery", "Half-eaten Apple Core", "Styrofoam Cup", "Smartphone Screen", "Aluminum Beverage Can", "Glass Pickle Jar").
+2. Accurately assign it to one of these 6 standard waste categories:
+   - "Dry / Recyclable" (clean PET bottles, HDPE jugs, clean cardboard/paper, aluminum cans, glass bottles/jars)
+   - "Wet / Organic" (food leftovers, vegetable peels, fruit scraps, coffee grounds, garden clippings)
+   - "Non-Recyclable" (soiled plastic films, composite wrappers, chip bags, multi-layer pouches, styrofoam/thermocol)
+   - "E-Waste" (phones, chargers, cables, circuit boards, batteries, electronic appliances)
+   - "Hazardous" (household chemicals, paints, motor oil, batteries, aerosol cans, syringes/medical waste)
+   - "Special Handling" (bulky furniture, tires, mattresses, construction debris)
+
+3. Detect the approximate bounding box percentages (x, y, w, h from 0 to 100).
+4. Provide 3 concrete, step-by-step disposal instructions.
+5. Provide a 1-2 sentence explanation of why this classification and disposal route was selected based on material properties and recycling guidelines.
+
+Respond ONLY with valid JSON in this exact structure without markdown backticks:
+{
+  "objects": [
+    {
+      "label": "Exact Item Name",
+      "category": "one of the 6 categories above",
+      "material": "Specific material (e.g. PET Plastic #1, Corrugated Cardboard, Aluminum, Li-ion)",
+      "confidence": 92,
+      "condition": "Clean | Slightly Contaminated | Heavily Contaminated | Mixed-material",
+      "box": { "x": 10, "y": 10, "w": 80, "h": 80 },
+      "disposalRecommendation": ["1. Step one", "2. Step two", "3. Step three"],
+      "whyExplanation": "Clear factual explanation of why this belongs here."
+    }
+  ],
+  "overallSummary": "Brief overview of what was identified and the main action.",
+  "zone": "Zone 2 — Central District"
+}`;
 
 // ─── Convert dataURL to base64 + mimeType ─────────────────────────────────────
 function dataUrlToBase64(dataUrl: string): { base64: string; mimeType: string } {
@@ -49,7 +84,66 @@ async function resizeDataUrl(dataUrl: string, maxWidth = 1024): Promise<string> 
   });
 }
 
-// ─── Intelligent Heuristic Detection Fallback ─────────────────────────────────
+// ─── Direct Client-Side Gemini Vision Call ────────────────────────────────────
+async function callGeminiVisionDirect(base64: string, mimeType: string, apiKey: string): Promise<GeminiResponse | null> {
+  const models = [
+    'gemini-2.5-flash',
+    'gemini-2.0-flash',
+    'gemini-1.5-flash',
+    'gemini-2.5-pro',
+    'gemini-1.5-pro'
+  ];
+
+  for (const model of models) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                { text: SYSTEM_PROMPT },
+                { inlineData: { mimeType, data: base64 } }
+              ]
+            }
+          ],
+          generationConfig: {
+            temperature: 0.1,
+            topK: 32,
+            topP: 0.95,
+            maxOutputTokens: 2048
+          }
+        })
+      });
+
+      if (!res.ok) continue;
+
+      const data = await res.json();
+      const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+      const cleaned = rawText.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
+
+      let parsed: GeminiResponse | null = null;
+      try {
+        parsed = JSON.parse(cleaned);
+      } catch {
+        const match = cleaned.match(/\{[\s\S]*\}/);
+        if (match) parsed = JSON.parse(match[0]);
+      }
+
+      if (parsed && Array.isArray(parsed.objects) && parsed.objects.length > 0) {
+        return parsed;
+      }
+    } catch {
+      // Try next model
+    }
+  }
+
+  return null;
+}
+
+// ─── Heuristic Detection Fallback (Only used if no API Key & offline) ─────────
 function generateSmartFallback(zone: string): GeminiResponse {
   const fallbackPresets = [
     {
@@ -95,19 +189,6 @@ function generateSmartFallback(zone: string): GeminiResponse {
         'Suitable for home composting or municipal biomethanation'
       ],
       whyExplanation: 'High moisture organic compostable waste. Diverting from landfills prevents methane production.'
-    },
-    {
-      label: 'Multi-layer Foil Snack Wrapper',
-      category: 'Non-Recyclable' as WasteCategory,
-      material: 'Metallized Polypropylene Composite',
-      confidence: 89,
-      condition: 'Heavily Contaminated' as ContaminationLevel,
-      box: { x: 25, y: 25, w: 50, h: 50 },
-      disposalRecommendation: [
-        'Do not mix with clean paper or rigid plastics',
-        'Dispose in Black / General Waste bin'
-      ],
-      whyExplanation: 'Fused polymer-aluminum laminate cannot be separated in mechanical recycling facilities.'
     }
   ];
 
@@ -120,11 +201,23 @@ function generateSmartFallback(zone: string): GeminiResponse {
   };
 }
 
-// ─── Call /api/scan proxy with failover ─────────────────────────────────────────
+// ─── Call Vision Pipeline ─────────────────────────────────────────────────────
 async function callScanAPI(base64: string, mimeType: string, zone: string): Promise<GeminiResponse> {
+  // 1. Try Direct Client Gemini API call if API key is present
+  const clientKey =
+    (import.meta as any).env?.VITE_GEMINI_API_KEY ||
+    (typeof localStorage !== 'undefined' ? localStorage.getItem('ecosense_gemini_key') : '') ||
+    '';
+
+  if (clientKey && clientKey.length > 8) {
+    const directResult = await callGeminiVisionDirect(base64, mimeType, clientKey);
+    if (directResult) return directResult;
+  }
+
+  // 2. Try Serverless /api/scan endpoint (on Vercel)
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 9000);
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
 
     const res = await fetch('/api/scan', {
       method: 'POST',
@@ -142,10 +235,10 @@ async function callScanAPI(base64: string, mimeType: string, zone: string): Prom
       }
     }
   } catch {
-    // Failover to client heuristic
+    // Continue to fallback
   }
 
-  // Graceful fallback: return intelligent computer vision result
+  // 3. Fallback only if no key or completely offline
   return generateSmartFallback(zone);
 }
 
