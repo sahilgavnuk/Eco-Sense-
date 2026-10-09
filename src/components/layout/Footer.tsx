@@ -32,16 +32,16 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               <span className="font-extrabold text-white text-lg tracking-tight">{t.brandTitle} AI</span>
             </div>
             <p className="text-emerald-100/70 max-w-sm leading-relaxed">
-              AI-Powered Community Waste Intelligence Platform serving Zone 1 (Kokan Region) and Zone 2 (NSP East/West & Virar).
+              {t.footerDesc}
             </p>
             <div className="flex items-center gap-2 text-[#10B981] font-semibold">
-              <ShieldCheck className="w-4 h-4" /> Anonymized Privacy-First Architecture
+              <ShieldCheck className="w-4 h-4" /> {t.footerPrivacy}
             </div>
           </div>
 
           {/* Col 2 */}
           <div className="space-y-2">
-            <h4 className="font-bold text-emerald-300 uppercase tracking-wider text-[11px]">Platform Core</h4>
+            <h4 className="font-bold text-emerald-300 uppercase tracking-wider text-[11px]">{t.footerCoreTitle}</h4>
             <ul className="space-y-2 text-gray-300">
               <li>
                 <button
@@ -88,32 +88,32 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
 
           {/* Col 3 */}
           <div className="space-y-2">
-            <h4 className="font-bold text-emerald-300 uppercase tracking-wider text-[11px]">Covered Zones</h4>
+            <h4 className="font-bold text-emerald-300 uppercase tracking-wider text-[11px]">{t.footerZonesTitle}</h4>
             <ul className="space-y-1.5 text-gray-300">
               <li className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]"></span>
-                <span>Zone 1 — Kokan Region</span>
+                <span>{t.zone1Name}</span>
               </li>
               <li className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]"></span>
-                <span>Zone 2 — NSP East/West & Virar</span>
+                <span>{t.zone2Name}</span>
               </li>
               <li className="flex items-center gap-1.5 pt-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                <span>Gemini Vision AI Engine</span>
+                <span>{t.footerEngine}</span>
               </li>
               <li className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                <span>CPCB Recycling Standards</span>
+                <span>{t.footerStandards}</span>
               </li>
             </ul>
           </div>
         </div>
 
         <div className="flex flex-col sm:flex-row items-center justify-between text-xs text-gray-400 gap-4">
-          <p>© 2026 EcoSense AI Platform. All rights reserved.</p>
+          <p>{t.footerRights}</p>
           <p className="flex items-center gap-1">
-            Built with <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" /> for Kokan & NSP/Virar.
+            <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500 inline" /> {t.footerMadeWith}
           </p>
         </div>
       </div>

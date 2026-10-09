@@ -75,7 +75,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
           <button
             onClick={toggleLanguage}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs rounded-xl border border-gray-200 transition-all cursor-pointer shadow-2xs"
-            title="Switch Language (English / मराठी)"
+            title={t.langSwitchLabel}
           >
             <Globe className="w-3.5 h-3.5 text-[#10B981]" />
             <span>{language === 'en' ? 'मराठी' : 'EN'}</span>
@@ -122,7 +122,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
               className="flex items-center gap-1.5 text-xs font-bold text-[#0F2E23] bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200"
             >
               <User className="w-3.5 h-3.5 text-[#10B981]" />
-              <span>{currentUser.isLoggedIn ? currentUser.name : 'Login / Set Profile'}</span>
+              <span>{currentUser.isLoggedIn ? currentUser.name : t.loginGuest}</span>
             </button>
 
             <button

@@ -15,6 +15,14 @@ export const ChallengesView: React.FC = () => {
     }
   };
 
+  const circularSteps = [
+    t.circularStep1,
+    t.circularStep2,
+    t.circularStep3,
+    t.circularStep4,
+    t.circularStep5
+  ];
+
   return (
     <div className="w-full max-w-6xl mx-auto space-y-8">
       {/* Header Banner */}
@@ -38,7 +46,7 @@ export const ChallengesView: React.FC = () => {
             <Flame className="w-8 h-8 text-amber-400 animate-pulse" />
             <div>
               <span className="text-[10px] uppercase font-bold text-amber-200">{t.ecoScoreStreak}</span>
-              <div className="text-2xl font-black text-white">{MOCK_ECOSCORE.activeStreakDays} Days</div>
+              <div className="text-2xl font-black text-white">{MOCK_ECOSCORE.activeStreakDays} {t.ecoScoreDays}</div>
             </div>
           </div>
         </div>
@@ -49,7 +57,7 @@ export const ChallengesView: React.FC = () => {
         {/* Big EcoScore Card */}
         <div className="lg:col-span-5 bg-white p-6 rounded-2xl border border-gray-200 shadow-xl flex flex-col items-center justify-center text-center space-y-4 relative">
           <span className="text-xs font-extrabold uppercase text-[#0F2E23] tracking-wider">
-            Kokan & NSP/Virar EcoScore
+            {t.ecoScoreGaugeTitle}
           </span>
 
           <div className="relative w-44 h-44 flex items-center justify-center">
@@ -70,16 +78,16 @@ export const ChallengesView: React.FC = () => {
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <span className="text-4xl font-black text-[#0F2E23]">{MOCK_ECOSCORE.totalScore}</span>
-              <span className="text-xs font-bold text-[#10B981]">OUT OF 100</span>
+              <span className="text-xs font-bold text-[#10B981]">{t.ecoScoreOutOf100}</span>
             </div>
           </div>
 
           <div className="text-xs text-gray-600 max-w-xs leading-relaxed font-semibold">
-            {MOCK_ECOSCORE.communityMilestone}
+            {t.ecoMilestone}
           </div>
 
           <div className="text-[11px] text-gray-400 bg-gray-50 p-2.5 rounded-lg border border-gray-100 w-full text-center">
-            * EcoScore aggregates scan volumes, segregation compliance, and rapid issue resolution.
+            {t.ecoScoreNote}
           </div>
         </div>
 
@@ -90,7 +98,7 @@ export const ChallengesView: React.FC = () => {
           <div className="space-y-4">
             <div>
               <div className="flex justify-between text-xs font-bold text-gray-700 mb-1">
-                <span>Segregation Accuracy Index</span>
+                <span>{t.dimSegregationAccuracy}</span>
                 <span className="text-[#10B981]">{MOCK_ECOSCORE.segregationScore} / 100</span>
               </div>
               <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
@@ -100,7 +108,7 @@ export const ChallengesView: React.FC = () => {
 
             <div>
               <div className="flex justify-between text-xs font-bold text-gray-700 mb-1">
-                <span>Community Awareness Rate</span>
+                <span>{t.dimCommunityAwareness}</span>
                 <span className="text-blue-600">{MOCK_ECOSCORE.awarenessScore} / 100</span>
               </div>
               <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
@@ -110,7 +118,7 @@ export const ChallengesView: React.FC = () => {
 
             <div>
               <div className="flex justify-between text-xs font-bold text-gray-700 mb-1">
-                <span>Resident Action Participation</span>
+                <span>{t.dimResidentParticipation}</span>
                 <span className="text-amber-600">{MOCK_ECOSCORE.participationScore} / 100</span>
               </div>
               <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
@@ -120,7 +128,7 @@ export const ChallengesView: React.FC = () => {
 
             <div>
               <div className="flex justify-between text-xs font-bold text-gray-700 mb-1">
-                <span>Waste Generation Reduction</span>
+                <span>{t.dimWasteReduction}</span>
                 <span className="text-purple-600">{MOCK_ECOSCORE.wasteReductionScore} / 100</span>
               </div>
               <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
@@ -131,7 +139,7 @@ export const ChallengesView: React.FC = () => {
 
           <div className="pt-2 text-xs text-gray-500 flex items-center gap-2 border-t border-gray-100">
             <ShieldCheck className="w-4 h-4 text-[#10B981]" />
-            <span>Community Index updated daily from verified Kokan & NSP/Virar scanner telemetry inputs.</span>
+            <span>{t.ecoScoreFooterNotice}</span>
           </div>
         </div>
       </div>
@@ -139,12 +147,12 @@ export const ChallengesView: React.FC = () => {
       {/* Circular Economy Visual Loop */}
       <div className="bg-[#0F2E23] text-white p-8 rounded-2xl border border-[#154233] shadow-xl text-center space-y-6">
         <div className="space-y-1">
-          <span className="text-xs font-bold text-emerald-400 uppercase tracking-widest">Circular Economy Protocol</span>
-          <h3 className="text-2xl font-extrabold text-white">Waste doesn't have to end at disposal.</h3>
+          <span className="text-xs font-bold text-emerald-400 uppercase tracking-widest">{t.circularBadge}</span>
+          <h3 className="text-2xl font-extrabold text-white">{t.circularTitle}</h3>
         </div>
 
         <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-6 pt-2">
-          {['1. USE', '2. SCAN & SORT', '3. RECOVER', '4. REUSE', '5. RECYCLE'].map((step, idx) => (
+          {circularSteps.map((step, idx) => (
             <React.Fragment key={step}>
               <div className="bg-white/10 hover:bg-white/20 border border-white/15 px-4 py-3 rounded-xl text-xs font-extrabold text-emerald-200 shadow-md">
                 {step}
@@ -155,7 +163,7 @@ export const ChallengesView: React.FC = () => {
         </div>
       </div>
 
-      {/* Community Challenges List (7-day segregation removed) */}
+      {/* Community Challenges List */}
       <div className="space-y-4">
         <h3 className="font-bold text-gray-900 text-xl">{t.ecoChallengeTitle}</h3>
 
@@ -165,13 +173,13 @@ export const ChallengesView: React.FC = () => {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 font-bold text-[10px] border border-blue-200">
-                  Monthly Goal
+                  {t.challenge1Badge}
                 </span>
-                <span className="text-xs text-gray-500 font-medium">189 Participants</span>
+                <span className="text-xs text-gray-500 font-medium">{t.challenge1Participants}</span>
               </div>
-              <h4 className="font-bold text-gray-900 text-base">Plastic Packaging Reduction Drive</h4>
+              <h4 className="font-bold text-gray-900 text-base">{t.challenge1Title}</h4>
               <p className="text-xs text-gray-600">
-                Reduce single-use PET bottles and multi-layer film packaging across Kokan & NSP/Virar through reusable alternatives.
+                {t.challenge1Desc}
               </p>
             </div>
 
@@ -198,13 +206,13 @@ export const ChallengesView: React.FC = () => {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="px-2.5 py-0.5 rounded-full bg-purple-50 text-purple-700 font-bold text-[10px] border border-purple-200">
-                  E-Waste Safety
+                  {t.challenge2Badge}
                 </span>
-                <span className="text-xs text-gray-500 font-medium">210 Participants</span>
+                <span className="text-xs text-gray-500 font-medium">{t.challenge2Participants}</span>
               </div>
-              <h4 className="font-bold text-gray-900 text-base">Community E-Waste & Battery Drive</h4>
+              <h4 className="font-bold text-gray-900 text-base">{t.challenge2Title}</h4>
               <p className="text-xs text-gray-600">
-                Identify and drop off unused electronics or lithium batteries safely at authorized municipal collection points.
+                {t.challenge2Desc}
               </p>
             </div>
 

@@ -3,21 +3,22 @@ import { XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineCh
 import { Sparkles, BarChart3, ArrowUpRight, Download } from 'lucide-react';
 import { useEco } from '../../context/EcoContext';
 import { MOCK_DAILY_TRENDS } from '../../data/mockData';
-
-const CATEGORY_PIE_DATA = [
-  { name: 'PET & Plastic Packaging', value: 44, color: '#10B981' },
-  { name: 'Wet / Organic Waste', value: 34, color: '#F59E0B' },
-  { name: 'Paper & Cardboard', value: 14, color: '#3B82F6' },
-  { name: 'E-Waste & Hazardous', value: 8, color: '#8B5CF6' }
-];
+import { getTranslatedZone, getTranslatedDominantCategory } from '../../data/translations';
 
 export const AnalyticsView: React.FC = () => {
   const { totalWasteCount, zoneMetrics, t } = useEco();
 
+  const categoryPieData = [
+    { name: t.catPetPlastic, value: 44, color: '#10B981' },
+    { name: t.catWetOrganicLabel, value: 34, color: '#F59E0B' },
+    { name: t.catPaperCardboard, value: 14, color: '#3B82F6' },
+    { name: t.catEWasteHazardous, value: 8, color: '#8B5CF6' }
+  ];
+
   const handleExportCSV = () => {
     const headers = 'Zone,Total Scans,Segregation Rate,Dominant Waste,Active Issues\n';
     const rows = zoneMetrics.map(
-      (z) => `"${z.zoneName}",${z.scansThisMonth},${z.segregationRate}%,"${z.dominantCategory}",${z.activeIssues}`
+      (z) => `"${getTranslatedZone(z.zoneName, t)}",${z.scansThisMonth},${z.segregationRate}%,"${z.dominantCategory}",${z.activeIssues}`
     ).join('\n');
     const blob = new Blob([headers + rows], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -58,12 +59,12 @@ export const AnalyticsView: React.FC = () => {
         </div>
       </div>
 
-      {/* KPI Stat Cards (Connection Reliability Removed, Total Waste Count = 150) */}
+      {/* KPI Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-md space-y-2">
           <div className="flex items-center justify-between text-xs text-gray-500 font-semibold uppercase">
             <span>{t.kpiTotalScans}</span>
-            <span className="text-emerald-600 font-bold flex items-center"><ArrowUpRight className="w-3.5 h-3.5" /> Live Telemetry</span>
+            <span className="text-emerald-600 font-bold flex items-center"><ArrowUpRight className="w-3.5 h-3.5" /> {t.kpiLiveTelemetry}</span>
           </div>
           <div className="text-4xl font-extrabold text-[#0F2E23]">{totalWasteCount}</div>
           <div className="text-xs text-gray-500">{t.kpiInputsDesc}</div>
@@ -75,7 +76,7 @@ export const AnalyticsView: React.FC = () => {
             <span className="text-rose-600 font-bold flex items-center"><ArrowUpRight className="w-3.5 h-3.5" /> 44.0%</span>
           </div>
           <div className="text-4xl font-extrabold text-[#10B981]">44.0%</div>
-          <div className="text-xs text-gray-500">Highest Category in NSP/Virar</div>
+          <div className="text-xs text-gray-500">{t.kpiPlasticSub}</div>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-md space-y-2">
@@ -84,35 +85,35 @@ export const AnalyticsView: React.FC = () => {
             <span className="text-emerald-600 font-bold flex items-center"><ArrowUpRight className="w-3.5 h-3.5" /> +5.4%</span>
           </div>
           <div className="text-4xl font-extrabold text-[#0F2E23]">80.0%</div>
-          <div className="text-xs text-gray-500">Correctly sorted across Kokan & NSP/Virar</div>
+          <div className="text-xs text-gray-500">{t.kpiSegregationSub}</div>
         </div>
       </div>
 
       {/* AI INSIGHT ENGINE HIGHLIGHT BANNER */}
       <div className="bg-gradient-to-r from-[#0F2E23] to-[#154233] text-white p-6 rounded-2xl border border-[#10B981]/30 shadow-xl space-y-4">
         <div className="flex items-center gap-2 text-xs font-bold text-[#34D399] uppercase tracking-wider">
-          <Sparkles className="w-4 h-4 text-[#10B981]" /> EcoSense AI 2-Zone Insight Engine
+          <Sparkles className="w-4 h-4 text-[#10B981]" /> {t.insightEngineBadge}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
           <div className="bg-white/10 p-4 rounded-xl border border-white/10 space-y-1">
-            <span className="text-emerald-300 font-bold uppercase text-[10px]">01 — Kokan Region Telemetry</span>
+            <span className="text-emerald-300 font-bold uppercase text-[10px]">{t.insightKokanTitle}</span>
             <p className="text-emerald-50 leading-relaxed">
-              Kokan region shows high organic and bio-waste generation (38%), with an 84% segregation accuracy into organic compost streams.
+              {t.insightKokanDesc}
             </p>
           </div>
 
           <div className="bg-white/10 p-4 rounded-xl border border-white/10 space-y-1">
-            <span className="text-emerald-300 font-bold uppercase text-[10px]">02 — NSP East/West & Virar</span>
+            <span className="text-emerald-300 font-bold uppercase text-[10px]">{t.insightNspTitle}</span>
             <p className="text-emerald-50 leading-relaxed">
-              PET plastic packaging and takeaway wrappers constitute 48% of scans near Station and Commercial areas, requiring rinse awareness.
+              {t.insightNspDesc}
             </p>
           </div>
 
           <div className="bg-[#10B981] text-[#0F2E23] p-4 rounded-xl font-medium space-y-1 shadow-md">
-            <span className="font-bold uppercase text-[10px] text-[#0F2E23]/80">03 — Action Plan</span>
+            <span className="font-bold uppercase text-[10px] text-[#0F2E23]/80">{t.insightActionTitle}</span>
             <p className="leading-relaxed font-bold">
-              Targeted "Empty & Rinse" drive in NSP/Virar and coastal biomethanation support in Kokan.
+              {t.insightActionDesc}
             </p>
           </div>
         </div>
@@ -127,7 +128,7 @@ export const AnalyticsView: React.FC = () => {
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={CATEGORY_PIE_DATA}
+                  data={categoryPieData}
                   cx="50%"
                   cy="50%"
                   innerRadius={60}
@@ -135,7 +136,7 @@ export const AnalyticsView: React.FC = () => {
                   paddingAngle={5}
                   dataKey="value"
                 >
-                  {CATEGORY_PIE_DATA.map((entry, index) => (
+                  {categoryPieData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
@@ -145,7 +146,7 @@ export const AnalyticsView: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-2 gap-2 text-xs">
-            {CATEGORY_PIE_DATA.map((item) => (
+            {categoryPieData.map((item) => (
               <div key={item.name} className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: item.color }}></span>
                 <span className="text-gray-700 font-medium truncate">{item.name} ({item.value}%)</span>
@@ -156,7 +157,7 @@ export const AnalyticsView: React.FC = () => {
 
         {/* Daily Scan Trend Line Chart */}
         <div className="lg:col-span-7 bg-white p-6 rounded-2xl border border-gray-200 shadow-md space-y-4">
-          <h3 className="font-bold text-gray-900 text-base">Daily Scan Telemetry (Kokan & NSP/Virar)</h3>
+          <h3 className="font-bold text-gray-900 text-base">{t.trendChartTitle}</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={MOCK_DAILY_TRENDS}>
@@ -164,16 +165,16 @@ export const AnalyticsView: React.FC = () => {
                 <YAxis stroke="#94a3b8" fontSize={11} />
                 <Tooltip />
                 <Legend />
-                <Line type="monotone" dataKey="scans" stroke="#10B981" strokeWidth={3} name="Total Scans" />
-                <Line type="monotone" dataKey="recyclable" stroke="#3B82F6" strokeWidth={2} name="Recyclable" />
-                <Line type="monotone" dataKey="organic" stroke="#F59E0B" strokeWidth={2} name="Organic Scraps" />
+                <Line type="monotone" dataKey="scans" stroke="#10B981" strokeWidth={3} name={t.trendTotalScans} />
+                <Line type="monotone" dataKey="recyclable" stroke="#3B82F6" strokeWidth={2} name={t.trendRecyclable} />
+                <Line type="monotone" dataKey="organic" stroke="#F59E0B" strokeWidth={2} name={t.trendOrganic} />
               </LineChart>
             </ResponsiveContainer>
           </div>
         </div>
       </div>
 
-      {/* Zone Performance Table — Exactly 2 Zones Only (Reliability removed) */}
+      {/* Zone Performance Table */}
       <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-md space-y-4">
         <h3 className="font-bold text-gray-900 text-base">{t.zoneTableTitle}</h3>
 
@@ -191,19 +192,19 @@ export const AnalyticsView: React.FC = () => {
             <tbody className="divide-y divide-gray-100 font-medium">
               {zoneMetrics.map((zone) => (
                 <tr key={zone.zoneId} className="hover:bg-gray-50/80 transition-all">
-                  <td className="py-3.5 px-4 font-bold text-[#0F2E23] text-sm">{zone.zoneName}</td>
-                  <td className="py-3.5 px-4 font-bold text-emerald-800">{zone.scansThisMonth} scans</td>
+                  <td className="py-3.5 px-4 font-bold text-[#0F2E23] text-sm">{getTranslatedZone(zone.zoneName, t)}</td>
+                  <td className="py-3.5 px-4 font-bold text-emerald-800">{zone.scansThisMonth} {t.unitScans}</td>
                   <td className="py-3.5 px-4">
                     <span className="inline-block px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
                       {zone.segregationRate}%
                     </span>
                   </td>
-                  <td className="py-3.5 px-4 text-gray-600">{zone.dominantCategory}</td>
+                  <td className="py-3.5 px-4 text-gray-600">{getTranslatedDominantCategory(zone.dominantCategory, t)}</td>
                   <td className="py-3.5 px-4 text-right">
                     <span className={`px-2.5 py-0.5 rounded-full font-bold ${
                       zone.activeIssues > 3 ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'
                     }`}>
-                      {zone.activeIssues} issues
+                      {zone.activeIssues} {t.unitIssues}
                     </span>
                   </td>
                 </tr>

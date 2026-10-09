@@ -2,6 +2,7 @@ import React from 'react';
 import { Camera, Sparkles, User, Edit3, ShieldCheck } from 'lucide-react';
 import { useEco } from '../../context/EcoContext';
 import type { UserRole } from '../../types';
+import { getTranslatedZone, getTranslatedRole } from '../../data/translations';
 
 interface DashboardViewProps {
   onNavigateToScanner: () => void;
@@ -21,20 +22,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateToScanne
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold uppercase tracking-wider text-emerald-300">
-              Authenticated Session
+              {t.dashAuthSession}
             </span>
             <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]"></span>
-            <span className="text-xs text-emerald-200/80 font-medium">{currentUser.role} Portal</span>
+            <span className="text-xs text-emerald-200/80 font-medium">{getTranslatedRole(currentUser.role, t)} {t.dashPortalSuffix}</span>
           </div>
 
           <div className="flex items-center gap-3 pt-1">
             <h2 className="text-2xl sm:text-3xl font-black text-white">
-              {t.loginWelcome}, {currentUser.name}
+              {t.loginWelcomeUser}, {currentUser.name}
             </h2>
             <button
               onClick={() => setLoginModalOpen(true)}
               className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-emerald-300 hover:text-white transition-all cursor-pointer"
-              title="Edit Profile / Switch User"
+              title={t.dashEditProfile}
             >
               <Edit3 className="w-4 h-4" />
             </button>
@@ -42,7 +43,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateToScanne
 
           <p className="text-xs text-emerald-100/80 flex items-center gap-1.5">
             <User className="w-3.5 h-3.5 text-[#10B981]" />
-            <span>{currentUser.zone}</span> · <span className="font-mono">{currentUser.email}</span>
+            <span>{getTranslatedZone(currentUser.zone, t)}</span> · <span className="font-mono">{currentUser.email}</span>
           </p>
         </div>
 
@@ -59,7 +60,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateToScanne
                     : 'text-gray-300 hover:text-white'
                 }`}
               >
-                {r}
+                {getTranslatedRole(r, t)}
               </button>
             ))}
           </div>
@@ -80,7 +81,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateToScanne
 
         <div className="relative z-10 max-w-2xl mx-auto space-y-3">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#10B981]/20 text-[#34D399] text-xs font-bold uppercase tracking-wider">
-            <Sparkles className="w-3.5 h-3.5" /> Primary Action
+            <Sparkles className="w-3.5 h-3.5" /> {t.dashPrimaryAction}
           </div>
           <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
             {t.dashReadyTitle}
@@ -101,32 +102,32 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateToScanne
         </div>
       </div>
 
-      {/* Community Snapshot Cards (Collection Status Removed) */}
+      {/* Community Snapshot Cards */}
       <div className="space-y-4">
         <h3 className="font-bold text-gray-900 text-lg flex items-center justify-between">
-          <span>{t.dashSnapshotTitle} ({currentUser.role} View)</span>
+          <span>{t.dashSnapshotTitle} ({getTranslatedRole(currentUser.role, t)} {t.dashViewSuffix})</span>
           <span className="text-xs text-[#10B981] font-semibold flex items-center gap-1">
-            <ShieldCheck className="w-3.5 h-3.5" /> Live 2-Zone Telemetry
+            <ShieldCheck className="w-3.5 h-3.5" /> {t.dashLiveTelemetryBadge}
           </span>
         </h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-md space-y-2">
             <span className="text-xs font-bold uppercase text-gray-500">{t.dashYourScans}</span>
-            <div className="text-3xl font-extrabold text-[#0F2E23]">{scansList.length} items</div>
-            <div className="text-xs text-emerald-600 font-semibold">96% Segregation Accuracy</div>
+            <div className="text-3xl font-extrabold text-[#0F2E23]">{scansList.length} {t.unitItems}</div>
+            <div className="text-xs text-emerald-600 font-semibold">{t.dashYourScansSub}</div>
           </div>
 
           <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-md space-y-2">
             <span className="text-xs font-bold uppercase text-gray-500">{t.dashActiveIssues}</span>
-            <div className="text-3xl font-extrabold text-amber-600">{reports.length} reports</div>
-            <div className="text-xs text-gray-500">Kokan & NSP/Virar Active Tickets</div>
+            <div className="text-3xl font-extrabold text-amber-600">{reports.length} {t.unitReports}</div>
+            <div className="text-xs text-gray-500">{t.dashActiveIssuesSub}</div>
           </div>
 
           <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-md space-y-2">
             <span className="text-xs font-bold uppercase text-gray-500">{t.dashEcoScore}</span>
             <div className="text-3xl font-extrabold text-[#10B981]">82 / 100</div>
-            <div className="text-xs text-gray-500">Total Scans Logged: {totalWasteCount}</div>
+            <div className="text-xs text-gray-500">{t.dashEcoScoreSub}: {totalWasteCount}</div>
           </div>
         </div>
       </div>
@@ -134,15 +135,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateToScanne
       {/* Role Specific Actions */}
       {currentUser.role === 'Coordinator' && (
         <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-md space-y-4">
-          <h4 className="font-bold text-[#0F2E23] text-base">Community Coordinator Management Panel</h4>
+          <h4 className="font-bold text-[#0F2E23] text-base">{t.dashCoordTitle}</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
             <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-1">
-              <span className="font-bold text-gray-900">Zone 2 (NSP/Virar) Inspection Dispatch</span>
-              <p className="text-gray-600">Review 4 reports logged along Station Road & Bypass sector.</p>
+              <span className="font-bold text-gray-900">{t.dashCoordCard1Title}</span>
+              <p className="text-gray-600">{t.dashCoordCard1Desc}</p>
             </div>
             <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-1">
-              <span className="font-bold text-gray-900">Zone 1 (Kokan) Coastal Clean Campaign</span>
-              <p className="text-gray-600">Schedule organic bio-waste composting awareness drive.</p>
+              <span className="font-bold text-gray-900">{t.dashCoordCard2Title}</span>
+              <p className="text-gray-600">{t.dashCoordCard2Desc}</p>
             </div>
           </div>
         </div>
@@ -151,21 +152,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateToScanne
       {currentUser.role === 'Administrator' && (
         <div className="bg-gray-900 text-white p-6 rounded-2xl shadow-xl space-y-4">
           <div className="flex items-center justify-between">
-            <h4 className="font-bold text-emerald-400 text-base">Municipal System Administrator Console</h4>
-            <span className="text-xs font-mono text-gray-400">2-Zone Pipeline Active</span>
+            <h4 className="font-bold text-emerald-400 text-base">{t.dashAdminTitle}</h4>
+            <span className="text-xs font-mono text-gray-400">{t.dashAdminSubtitle}</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
             <div className="bg-white/10 p-3 rounded-xl border border-white/10">
-              <span className="text-gray-400">Active Zones</span>
-              <div className="font-mono font-bold text-white mt-1">2 Zones (Kokan & NSP/Virar)</div>
+              <span className="text-gray-400">{t.dashAdminActiveZones}</span>
+              <div className="font-mono font-bold text-white mt-1">{t.adminActiveZonesVal}</div>
             </div>
             <div className="bg-white/10 p-3 rounded-xl border border-white/10">
-              <span className="text-gray-400">Total Scans Telemetry</span>
-              <div className="font-mono font-bold text-white mt-1">{totalWasteCount} Scans Indexed</div>
+              <span className="text-gray-400">{t.dashAdminTotalTelemetry}</span>
+              <div className="font-mono font-bold text-white mt-1">{totalWasteCount} {t.adminScansIndexed}</div>
             </div>
             <div className="bg-white/10 p-3 rounded-xl border border-white/10">
-              <span className="text-gray-400">API Health</span>
-              <div className="font-mono font-bold text-[#10B981] mt-1">200 OK (14ms latency)</div>
+              <span className="text-gray-400">{t.dashAdminApiHealth}</span>
+              <div className="font-mono font-bold text-[#10B981] mt-1">{t.adminSystemHealthVal}</div>
             </div>
           </div>
         </div>

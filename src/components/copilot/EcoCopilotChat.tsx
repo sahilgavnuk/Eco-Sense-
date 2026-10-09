@@ -240,11 +240,11 @@ export const EcoCopilotChat: React.FC = () => {
                   <span className="text-white font-bold text-sm sm:text-base">EcoSense AI Copilot</span>
                   <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono border bg-[#10B981]/20 text-[#34D399] border-[#10B981]/30">
                     <span className="w-1.5 h-1.5 rounded-full bg-[#34D399] animate-pulse" />
-                    {hasConfiguredKey ? 'Live AI Active' : 'Smart Knowledge Engine'}
+                    {hasConfiguredKey ? t.copilotLiveAi : t.copilotKnowledgeEngine}
                   </span>
                 </div>
                 <p className="text-[11px] text-emerald-100/60 mt-0.5">
-                  Waste Segregation · 2-Zone Compliance (Kokan & NSP/Virar) · 24/7 AI Guidance
+                  {t.copilotSubtitle}
                 </p>
               </div>
             </div>
@@ -256,7 +256,7 @@ export const EcoCopilotChat: React.FC = () => {
                 title="Configure Google Gemini API Key"
               >
                 <Key className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">API Key</span>
+                <span className="hidden sm:inline">{t.copilotApiKey}</span>
                 {showKeyPanel ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
               </button>
               <button
@@ -278,20 +278,20 @@ export const EcoCopilotChat: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <ShieldCheck className="w-4 h-4 text-[#34D399]" />
                     <span className="text-xs text-emerald-200 font-mono">
-                      Active API Key: {apiKey.slice(0, 10)}…{apiKey.slice(-4)}
+                      {t.copilotApiKey}: {apiKey.slice(0, 10)}…{apiKey.slice(-4)}
                     </span>
                   </div>
                   <button
                     onClick={removeApiKey}
                     className="text-red-300 hover:text-red-200 text-xs flex items-center gap-1 cursor-pointer font-medium"
                   >
-                    <X className="w-3.5 h-3.5" /> Remove
+                    <X className="w-3.5 h-3.5" /> {t.copilotRemoveKey}
                   </button>
                 </div>
               ) : (
                 <div className="space-y-2">
                   <p className="text-xs text-emerald-100/70">
-                    Paste your{' '}
+                    {t.copilotKeyPrompt}{' '}
                     <a
                       href="https://aistudio.google.com/app/apikey"
                       target="_blank"
@@ -299,8 +299,7 @@ export const EcoCopilotChat: React.FC = () => {
                       className="underline text-[#34D399] font-medium"
                     >
                       Google AI Studio API Key
-                    </a>{' '}
-                    to enable direct generative model responses:
+                    </a>
                   </p>
                   <div className="flex gap-2">
                     <input
@@ -316,7 +315,7 @@ export const EcoCopilotChat: React.FC = () => {
                       disabled={!apiKeyInput.trim()}
                       className="px-4 py-2 bg-[#10B981] hover:bg-[#059669] disabled:opacity-40 text-[#0F2E23] text-xs font-bold rounded-xl transition-colors cursor-pointer"
                     >
-                      Save Key
+                      {t.copilotSaveKey}
                     </button>
                   </div>
                 </div>
@@ -423,7 +422,7 @@ export const EcoCopilotChat: React.FC = () => {
                   <div className="w-2 h-2 rounded-full bg-[#10B981] animate-bounce" style={{ animationDelay: '150ms' }} />
                   <div className="w-2 h-2 rounded-full bg-[#10B981] animate-bounce" style={{ animationDelay: '300ms' }} />
                   <span className="text-[11px] text-gray-500 font-medium ml-1">
-                    {language === 'mr' ? 'उत्तर तयार होत आहे…' : 'Analyzing disposal protocols…'}
+                    {t.copilotTyping}
                   </span>
                 </div>
               </div>
@@ -463,11 +462,7 @@ export const EcoCopilotChat: React.FC = () => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             disabled={isTyping}
-            placeholder={
-              language === 'mr'
-                ? 'कचरा, रिसायकलिंग किंवा विल्हेवाटीबद्दल काहीही विचारा...'
-                : 'Ask about any waste item, recycling rules, composting, or zone protocol...'
-            }
+            placeholder={t.copilotPlaceholder}
             className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/20 outline-none transition-all disabled:opacity-50"
           />
           <button

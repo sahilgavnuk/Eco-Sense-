@@ -8,6 +8,7 @@ import ScanResultCard from './ScanResultCard';
 import { scanDataUrl } from './wasteAI';
 import { useEco } from '../../context/EcoContext';
 import { AVAILABLE_ZONES } from '../../data/mockData';
+import { getTranslatedZone } from '../../data/translations';
 
 interface ScannerInterfaceProps {
   onScanComplete?: (result: ScanResult) => void;
@@ -50,18 +51,18 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
   // Stop camera on unmount
   useEffect(() => {
     return () => {
-      cameraStream?.getTracks().forEach((t) => t.stop());
+      cameraStream?.getTracks().forEach((track) => track.stop());
     };
   }, [cameraStream]);
 
   // Step animation
-  const startSteps = () => {
+  const startSteps = useCallback(() => {
     const steps = [
-      'Sending image to Gemini Vision AI…',
-      'Detecting visible waste objects…',
-      'Classifying materials & resin types…',
-      'Evaluating contamination state…',
-      'Generating certified disposal protocol…',
+      t.scannerStep1,
+      t.scannerStep2,
+      t.scannerStep3,
+      t.scannerStep4,
+      t.scannerStep5,
     ];
     let i = 0;
     setScanStepText(steps[0]);
@@ -70,7 +71,7 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
       setScanStepText(steps[i]);
     }, 600);
     return iv;
-  };
+  }, [t]);
 
   // Core scan execution
   const runScan = useCallback(async (dataUrl: string) => {
@@ -97,9 +98,9 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
     } catch (err) {
       clearInterval(iv);
       setIsScanning(false);
-      setScanError(`Scan issue: ${err instanceof Error ? err.message : String(err)}`);
+      setScanError(`${t.scannerErrorTitle}: ${err instanceof Error ? err.message : String(err)}`);
     }
-  }, [telemetryOptIn, selectedZone, addScan, onScanComplete]);
+  }, [telemetryOptIn, selectedZone, addScan, onScanComplete, startSteps, t]);
 
   // File upload handler
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -121,7 +122,7 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
   const startLiveCamera = async (facing: 'environment' | 'user' = cameraFacing) => {
     try {
       if (cameraStream) {
-        cameraStream.getTracks().forEach((t) => t.stop());
+        cameraStream.getTracks().forEach((track) => track.stop());
       }
       setCurrentResult(null);
       setScanError(null);
@@ -147,7 +148,7 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
 
   const stopLiveCamera = () => {
     if (cameraStream) {
-      cameraStream.getTracks().forEach((t) => t.stop());
+      cameraStream.getTracks().forEach((track) => track.stop());
       setCameraStream(null);
     }
     setCameraOpen(false);
@@ -205,7 +206,7 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
 
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border shrink-0 bg-emerald-500/20 border-emerald-400/30 text-emerald-200">
             <CheckCircle2 className="w-3.5 h-3.5 text-[#34D399]" />
-            Active 2-Zone AI
+            {t.zoneActiveAiBadge}
           </div>
         </div>
       </div>
@@ -223,7 +224,7 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
         >
           {AVAILABLE_ZONES.map((z) => (
             <option key={z} value={z}>
-              {z}
+              {getTranslatedZone(z, t)}
             </option>
           ))}
         </select>
@@ -234,13 +235,13 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
         <div className="bg-emerald-50 border border-emerald-300 rounded-xl p-3.5 flex items-center justify-between text-xs text-emerald-900 animate-in fade-in duration-300 shadow-xs">
           <div className="flex items-center gap-2 font-bold">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>{t.scannerSuccessLogged} ({selectedZone})</span>
+            <span>{t.scannerSuccessLogged} ({getTranslatedZone(selectedZone, t)})</span>
           </div>
           <button
             onClick={() => onNavigate && onNavigate('analytics')}
             className="text-emerald-800 underline font-bold hover:text-emerald-950 cursor-pointer"
           >
-            View Telemetry →
+            {t.scannerViewTelemetry}
           </button>
         </div>
       )}
@@ -277,9 +278,9 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
                   <ZoomIn className="w-9 h-9 text-[#10B981]" />
                 </div>
                 <div>
-                  <p className="text-white font-semibold text-lg">Ready to scan waste</p>
+                  <p className="text-white font-semibold text-lg">{t.scannerReadyTitle}</p>
                   <p className="text-white/60 text-xs mt-1 max-w-xs mx-auto">
-                    Take a live photo using Camera or upload an image from your files
+                    {t.scannerReadyDesc}
                   </p>
                 </div>
               </div>
@@ -351,7 +352,7 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
                 <button
                   onClick={stopLiveCamera}
                   className="w-11 h-11 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center transition-all cursor-pointer"
-                  title="Close Camera"
+                  title={t.scannerCloseCamera}
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -445,7 +446,7 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
                 <RefreshCw className="w-6 h-6" />
               </div>
               <div>
-                <h4 className="text-lg font-bold text-gray-900">AI Vision Inspecting…</h4>
+                <h4 className="text-lg font-bold text-gray-900">{t.scannerInspectingTitle}</h4>
                 <p className="text-sm text-gray-500 mt-1">{scanStepText}</p>
               </div>
               <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
@@ -460,7 +461,7 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
               <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-amber-500" />
               <div className="space-y-1">
                 <p className="font-semibold">{scanError}</p>
-                <p className="text-xs text-amber-700">Please take a clearer photo with good lighting or try another image.</p>
+                <p className="text-xs text-amber-700">{t.scannerErrorDesc}</p>
               </div>
             </div>
           )}
@@ -469,8 +470,8 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
           {!isScanning && currentResult && currentResult.objects.length > 1 && (
             <div className="bg-[#0F2E23]/5 p-3 rounded-xl border border-[#0F2E23]/10">
               <div className="text-xs font-bold uppercase text-[#0F2E23] mb-2 flex items-center justify-between">
-                <span>{currentResult.objects.length} Objects Detected</span>
-                <span className="text-gray-500 font-normal">Tap to inspect</span>
+                <span>{currentResult.objects.length} {t.scannerObjectsDetected}</span>
+                <span className="text-gray-500 font-normal">{t.scannerTapToInspect}</span>
               </div>
               <div className="flex flex-wrap gap-2">
                 {currentResult.objects.map((obj) => (
@@ -508,9 +509,9 @@ export const ScannerInterface: React.FC<ScannerInterfaceProps> = ({
                 <Eye className="w-7 h-7" />
               </div>
               <div>
-                <h3 className="font-bold text-gray-900 text-lg">Ready to Scan Waste</h3>
+                <h3 className="font-bold text-gray-900 text-lg">{t.scannerReadyTitle}</h3>
                 <p className="text-sm text-gray-500 mt-1 max-w-sm mx-auto">
-                  Click <strong>Live Camera</strong> or <strong>Upload Photo</strong>. The AI will classify material, prescribe disposal steps, and increment Kokan & NSP/Virar telemetry.
+                  {t.scannerReadyDesc}
                 </p>
               </div>
             </div>

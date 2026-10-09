@@ -2,6 +2,14 @@ import React from 'react';
 import { CheckCircle2, ArrowRight, Recycle, BarChart3, RefreshCw, Info } from 'lucide-react';
 import type { ScanResult, DetectedObject } from '../../types';
 import { useEco } from '../../context/EcoContext';
+import {
+  getTranslatedCategory,
+  getTranslatedCondition,
+  getTranslatedObjectLabel,
+  getTranslatedMaterial,
+  getTranslatedDisposalStep,
+  getTranslatedExplanation
+} from '../../data/translations';
 
 interface ScanResultCardProps {
   result: ScanResult;
@@ -16,7 +24,7 @@ export const ScanResultCard: React.FC<ScanResultCardProps> = ({
   onScanAnother,
   onViewCommunity
 }) => {
-  const { t } = useEco();
+  const { language, t } = useEco();
 
   const getCategoryColor = (cat: string) => {
     switch (cat) {
@@ -56,23 +64,23 @@ export const ScanResultCard: React.FC<ScanResultCardProps> = ({
       <div className="flex items-start justify-between gap-3 pb-4 border-b border-gray-100">
         <div>
           <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold border ${getCategoryColor(activeObject.category)} mb-1.5`}>
-            {activeObject.category}
+            {getTranslatedCategory(activeObject.category, t)}
           </span>
           <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-            <span>{activeObject.label}</span>
+            <span>{getTranslatedObjectLabel(activeObject.label, language)}</span>
           </h3>
           <p className="text-xs text-gray-500 mt-0.5">
-            Material: <span className="font-semibold text-gray-700">{activeObject.material}</span>
+            {t.scannerMaterial} <span className="font-semibold text-gray-700">{getTranslatedMaterial(activeObject.material, language)}</span>
           </p>
         </div>
 
         <div className="text-right">
           <div className="inline-flex items-center gap-1 bg-emerald-50 text-[#10B981] px-3 py-1 rounded-full border border-emerald-200 font-mono text-xs font-bold">
             <CheckCircle2 className="w-3.5 h-3.5" />
-            {activeObject.confidence}% AI Confidence
+            {activeObject.confidence}% {t.scannerConfidence}
           </div>
           <div className={`mt-1 text-[11px] font-medium px-2 py-0.5 rounded inline-block ${getConditionColor(activeObject.condition)}`}>
-            Condition: {activeObject.condition}
+            {t.scannerCondition} {getTranslatedCondition(activeObject.condition, t)}
           </div>
         </div>
       </div>
@@ -83,7 +91,7 @@ export const ScanResultCard: React.FC<ScanResultCardProps> = ({
           <span className="flex items-center gap-1.5">
             <Recycle className="w-4 h-4 text-[#10B981]" /> {t.scannerRecommendation}
           </span>
-          <span className="text-white/60 text-[10px]">EcoSense Protocol</span>
+          <span className="text-white/60 text-[10px]">{t.scannerEcoSenseProtocol}</span>
         </div>
 
         {/* Step-by-step action flow */}
@@ -94,7 +102,7 @@ export const ScanResultCard: React.FC<ScanResultCardProps> = ({
                 <span className="w-4 h-4 rounded-full bg-[#10B981] text-[#0F2E23] text-[10px] font-black flex items-center justify-center">
                   {idx + 1}
                 </span>
-                <span>{step}</span>
+                <span>{getTranslatedDisposalStep(step, language)}</span>
               </div>
               {idx < activeObject.disposalRecommendation.length - 1 && (
                 <ArrowRight className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
@@ -111,7 +119,7 @@ export const ScanResultCard: React.FC<ScanResultCardProps> = ({
           <span>{t.scannerExplainable}</span>
         </div>
         <p className="text-gray-600 leading-relaxed pl-5">
-          {activeObject.whyExplanation}
+          {getTranslatedExplanation(activeObject.whyExplanation, language)}
         </p>
       </div>
 

@@ -69,20 +69,20 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="p-6 rounded-2xl bg-gray-50 border border-gray-200/80 space-y-3">
               <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center font-bold">?</div>
-              <h3 className="font-bold text-gray-900 text-base">"What is this item?"</h3>
-              <p className="text-xs text-gray-600">Multi-layer plastics, composite food containers, and e-waste components are hard to classify manually.</p>
+              <h3 className="font-bold text-gray-900 text-base">{t.problemCard1Title}</h3>
+              <p className="text-xs text-gray-600">{t.problemCard1Desc}</p>
             </div>
 
             <div className="p-6 rounded-2xl bg-gray-50 border border-gray-200/80 space-y-3">
               <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold">?</div>
-              <h3 className="font-bold text-gray-900 text-base">"Is it contaminated?"</h3>
-              <p className="text-xs text-gray-600">Unrinsed food oils can ruin an entire batch of dry recyclables. AI identifies contamination states instantly.</p>
+              <h3 className="font-bold text-gray-900 text-base">{t.problemCard2Title}</h3>
+              <p className="text-xs text-gray-600">{t.problemCard2Desc}</p>
             </div>
 
             <div className="p-6 rounded-2xl bg-gray-50 border border-gray-200/80 space-y-3">
               <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">✓</div>
-              <h3 className="font-bold text-gray-900 text-base">"Where does it go?"</h3>
-              <p className="text-xs text-gray-600">EcoSense gives exact step-by-step disposal protocols (Empty → Rinse → Dry → Recycle).</p>
+              <h3 className="font-bold text-gray-900 text-base">{t.problemCard3Title}</h3>
+              <p className="text-xs text-gray-600">{t.problemCard3Desc}</p>
             </div>
           </div>
         </div>
@@ -93,13 +93,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12 relative z-10">
           <div className="text-center space-y-3 max-w-3xl mx-auto">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#10B981]/20 text-[#34D399] text-xs font-bold uppercase tracking-wider">
-              <Layers className="w-3.5 h-3.5" /> 02 — 2-Zone Environmental Telemetry
+              <Layers className="w-3.5 h-3.5" /> {t.telemetrySectionBadge}
             </span>
             <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
-              Every scan powers Kokan & NSP/Virar waste decisions.
+              {t.telemetrySectionTitle}
             </h2>
             <p className="text-emerald-100/70 text-sm">
-              The scanner is not just an AI feature. It is a live data collection engine powering community decisions across Zone 1 (Kokan) and Zone 2 (NSP/Virar).
+              {t.telemetrySectionDesc}
             </p>
           </div>
 
@@ -107,36 +107,36 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
             <div className="bg-white/10 p-5 rounded-2xl border border-white/10 space-y-2">
               <span className="text-xs font-bold text-emerald-400">STEP 01</span>
-              <h4 className="font-bold text-white text-sm">User Scans Item</h4>
-              <p className="text-[11px] text-emerald-100/70">Instant vision inference & disposal steps</p>
+              <h4 className="font-bold text-white text-sm">{t.telemetryStep1Title}</h4>
+              <p className="text-[11px] text-emerald-100/70">{t.telemetryStep1Desc}</p>
             </div>
 
             <div className="bg-white/10 p-5 rounded-2xl border border-white/10 space-y-2">
               <span className="text-xs font-bold text-emerald-400">STEP 02</span>
-              <h4 className="font-bold text-white text-sm">Zone Telemetry (+1)</h4>
-              <p className="text-[11px] text-emerald-100/70">Logged to Kokan or NSP/Virar dataset</p>
+              <h4 className="font-bold text-white text-sm">{t.telemetryStep2Title}</h4>
+              <p className="text-[11px] text-emerald-100/70">{t.telemetryStep2Desc}</p>
             </div>
 
             <div className="bg-white/10 p-5 rounded-2xl border border-white/10 space-y-2">
               <span className="text-xs font-bold text-emerald-400">STEP 03</span>
-              <h4 className="font-bold text-white text-sm">Community Analytics</h4>
-              <p className="text-[11px] text-emerald-100/70">Identifies packaging surges & trends</p>
+              <h4 className="font-bold text-white text-sm">{t.telemetryStep3Title}</h4>
+              <p className="text-[11px] text-emerald-100/70">{t.telemetryStep3Desc}</p>
             </div>
 
             <div className="bg-[#10B981] text-[#0F2E23] p-5 rounded-2xl font-bold space-y-2 shadow-lg">
               <span className="text-xs uppercase text-[#0F2E23]/80">STEP 04</span>
-              <h4 className="font-extrabold text-sm">Smarter Action</h4>
-              <p className="text-[11px] text-[#0F2E23]/90">Targeted awareness & cleaner zones</p>
+              <h4 className="font-extrabold text-sm">{t.telemetryStep4Title}</h4>
+              <p className="text-[11px] text-[#0F2E23]/90">{t.telemetryStep4Desc}</p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* SECTION 03 — PLATFORM MODULE TEASERS (Map & Predictions removed) */}
+      {/* SECTION 03 — PLATFORM MODULE TEASERS */}
       <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
         <div className="text-center space-y-2 max-w-2xl mx-auto">
-          <span className="text-xs font-extrabold text-[#10B981] uppercase tracking-wider">03 — Comprehensive Ecosystem</span>
-          <h2 className="text-3xl font-extrabold text-[#0F2E23]">Everything you need for environmental intelligence.</h2>
+          <span className="text-xs font-extrabold text-[#10B981] uppercase tracking-wider">{t.ecosystemBadge}</span>
+          <h2 className="text-3xl font-extrabold text-[#0F2E23]">{t.ecosystemTitle}</h2>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -147,10 +147,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
             <div className="w-12 h-12 rounded-xl bg-emerald-50 text-[#10B981] flex items-center justify-center font-bold group-hover:scale-110 transition-all">
               <BarChart3 className="w-6 h-6" />
             </div>
-            <h3 className="font-bold text-gray-900 text-lg">2-Zone Intelligence</h3>
-            <p className="text-xs text-gray-600">Track total waste scans (150+), segregation indices, and category distributions for Kokan & NSP/Virar.</p>
+            <h3 className="font-bold text-gray-900 text-lg">{t.ecosystemCard1Title}</h3>
+            <p className="text-xs text-gray-600">{t.ecosystemCard1Desc}</p>
             <span className="inline-flex items-center gap-1 text-xs font-bold text-[#10B981] pt-2">
-              Explore Analytics <ArrowRight className="w-3.5 h-3.5" />
+              {t.ecosystemCard1Cta} <ArrowRight className="w-3.5 h-3.5" />
             </span>
           </div>
 
@@ -161,10 +161,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
             <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold group-hover:scale-110 transition-all">
               <Bot className="w-6 h-6" />
             </div>
-            <h3 className="font-bold text-gray-900 text-lg">Professional AI Copilot</h3>
-            <p className="text-xs text-gray-600">Executive environmental engineering AI grounded in CPCB recycling codes and ISO standards.</p>
+            <h3 className="font-bold text-gray-900 text-lg">{t.ecosystemCard2Title}</h3>
+            <p className="text-xs text-gray-600">{t.ecosystemCard2Desc}</p>
             <span className="inline-flex items-center gap-1 text-xs font-bold text-purple-600 pt-2">
-              Consult Copilot <ArrowRight className="w-3.5 h-3.5" />
+              {t.ecosystemCard2Cta} <ArrowRight className="w-3.5 h-3.5" />
             </span>
           </div>
 
@@ -175,10 +175,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
             <div className="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold group-hover:scale-110 transition-all">
               <ShieldAlert className="w-6 h-6" />
             </div>
-            <h3 className="font-bold text-gray-900 text-lg">Report Incident</h3>
-            <p className="text-xs text-gray-600">Capture real photos of garbage accumulation or overflowing bins with local storage persistence.</p>
+            <h3 className="font-bold text-gray-900 text-lg">{t.ecosystemCard3Title}</h3>
+            <p className="text-xs text-gray-600">{t.ecosystemCard3Desc}</p>
             <span className="inline-flex items-center gap-1 text-xs font-bold text-rose-600 pt-2">
-              Report Issue <ArrowRight className="w-3.5 h-3.5" />
+              {t.ecosystemCard3Cta} <ArrowRight className="w-3.5 h-3.5" />
             </span>
           </div>
         </div>
@@ -187,11 +187,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
       {/* FINAL CTA BANNER */}
       <section className="bg-gradient-to-r from-[#0F2E23] via-[#154233] to-[#0F2E23] text-white py-16 text-center px-4 rounded-3xl max-w-6xl mx-auto shadow-2xl space-y-6">
         <h2 className="text-3xl sm:text-5xl font-black tracking-tight">
-          See the problem. Understand the data. <br />
-          <span className="text-[#10B981]">Take smarter action.</span>
+          {t.ctaBannerTitle1} <br />
+          <span className="text-[#10B981]">{t.ctaBannerTitle2}</span>
         </h2>
         <p className="text-emerald-100/70 text-sm max-w-xl mx-auto">
-          Join residents across Kokan Region and NSP East/West & Virar in scanning waste daily to build cleaner communities.
+          {t.ctaBannerDesc}
         </p>
 
         <button
@@ -199,7 +199,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
           className="px-8 py-4 bg-[#10B981] hover:bg-[#059669] text-[#0F2E23] font-black text-base rounded-full shadow-2xl inline-flex items-center gap-3 transform hover:scale-105 transition-all cursor-pointer"
         >
           <Camera className="w-6 h-6" />
-          <span>START SCANNING NOW</span>
+          <span>{t.ctaBannerBtn}</span>
         </button>
       </section>
     </div>

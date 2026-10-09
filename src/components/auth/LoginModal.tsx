@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, User, Mail, MapPin, Shield, CheckCircle2 } from 'lucide-react';
 import { useEco } from '../../context/EcoContext';
 import { AVAILABLE_ZONES } from '../../data/mockData';
+import { getTranslatedZone, getTranslatedRole } from '../../data/translations';
 import type { UserRole } from '../../types';
 
 export const LoginModal: React.FC = () => {
@@ -60,7 +61,7 @@ export const LoginModal: React.FC = () => {
             <h3 className="text-lg font-extrabold text-white">{t.loginModalTitle}</h3>
           </div>
           <p className="text-xs text-emerald-100/70">
-            Log in to log your scans, track community EcoScore, and submit geo-reports.
+            {t.loginModalDesc}
           </p>
         </div>
 
@@ -69,8 +70,8 @@ export const LoginModal: React.FC = () => {
           {savedSuccess ? (
             <div className="py-8 text-center space-y-2">
               <CheckCircle2 className="w-12 h-12 text-[#10B981] mx-auto animate-bounce" />
-              <h4 className="text-base font-bold text-gray-900">Welcome, {name}!</h4>
-              <p className="text-gray-500">Your profile is updated and logged in.</p>
+              <h4 className="text-base font-bold text-gray-900">{t.loginWelcomeUser}, {name}!</h4>
+              <p className="text-gray-500">{t.loginProfileUpdated}</p>
             </div>
           ) : (
             <>
@@ -85,7 +86,7 @@ export const LoginModal: React.FC = () => {
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Enter your real full name..."
+                  placeholder={t.loginNamePlaceholder}
                   className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:ring-2 focus:ring-[#10B981] outline-none transition-all"
                 />
               </div>
@@ -100,7 +101,7 @@ export const LoginModal: React.FC = () => {
                   type="text"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="e.g. yourname@gmail.com or 9876543210"
+                  placeholder={t.loginEmailPlaceholder}
                   className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:ring-2 focus:ring-[#10B981] outline-none transition-all"
                 />
               </div>
@@ -118,7 +119,7 @@ export const LoginModal: React.FC = () => {
                 >
                   {AVAILABLE_ZONES.map((z) => (
                     <option key={z} value={z}>
-                      {z}
+                      {getTranslatedZone(z, t)}
                     </option>
                   ))}
                 </select>
@@ -142,7 +143,7 @@ export const LoginModal: React.FC = () => {
                           : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                       }`}
                     >
-                      {r}
+                      {getTranslatedRole(r, t)}
                     </button>
                   ))}
                 </div>

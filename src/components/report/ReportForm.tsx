@@ -6,6 +6,12 @@ import {
 import type { WasteReport, IssueType, IssueSeverity } from '../../types';
 import { useEco } from '../../context/EcoContext';
 import { AVAILABLE_ZONES } from '../../data/mockData';
+import {
+  getTranslatedZone,
+  getTranslatedIssueType,
+  getTranslatedSeverity,
+  getTranslatedStatus
+} from '../../data/translations';
 
 export const ReportForm: React.FC = () => {
   const { reports, addReport, updateReportStatus, currentUser, t } = useEco();
@@ -37,7 +43,7 @@ export const ReportForm: React.FC = () => {
           setIsLocating(false);
           setGpsLocked(true);
           setLocationStatus(
-            `${pos.coords.latitude.toFixed(4)} N, ${pos.coords.longitude.toFixed(4)} E (GPS Verified · ${selectedZone})`
+            `${pos.coords.latitude.toFixed(4)} N, ${pos.coords.longitude.toFixed(4)} E (${t.reportGpsVerified} · ${getTranslatedZone(selectedZone, t)})`
           );
         },
         () => {
@@ -102,7 +108,7 @@ export const ReportForm: React.FC = () => {
           detectedIssue: `${issueType} detected`,
           severityScore: severity === 'HIGH' ? 92 : severity === 'MEDIUM' ? 68 : 45,
           confidence: 96,
-          interpretation: `AI model confirmed ${issueType.toLowerCase()} with high volume density. Priority alert dispatched for ${selectedZone}.`
+          interpretation: `AI model confirmed ${issueType.toLowerCase()} with high volume density. Priority alert dispatched for ${getTranslatedZone(selectedZone, t)}.`
         },
         residentConfirmed: false,
         clusterCount: Math.floor(Math.random() * 4) + 1
@@ -127,6 +133,14 @@ export const ReportForm: React.FC = () => {
     return r.severity === filterSeverity;
   });
 
+  const timelineSteps = [
+    t.timelineStep1,
+    t.timelineStep2,
+    t.timelineStep3,
+    t.timelineStep4,
+    t.timelineStep5
+  ];
+
   return (
     <div className="w-full max-w-5xl mx-auto space-y-8">
       {/* Header */}
@@ -147,7 +161,7 @@ export const ReportForm: React.FC = () => {
         <Database className="w-5 h-5 text-[#10B981] shrink-0 mt-0.5" />
         <div className="space-y-1">
           <div className="font-bold text-emerald-900 flex items-center gap-1.5">
-            <span>डेटा साठवणूक व स्थानिक सुरक्षा (Data Storage Architecture)</span>
+            <span>{t.reportStorageTitle}</span>
           </div>
           <p className="text-emerald-800 leading-relaxed">
             {t.reportStorageNotice}
@@ -161,9 +175,9 @@ export const ReportForm: React.FC = () => {
           <div className="flex items-center justify-between border-b border-gray-100 pb-3">
             <h3 className="font-extrabold text-gray-900 text-base flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 text-[#10B981]" />
-              New Incident Report
+              {t.reportFormTitle}
             </h3>
-            <span className="text-[11px] font-mono text-gray-500">2-Zone Dispatch Form</span>
+            <span className="text-[11px] font-mono text-gray-500">{t.reportFormSubtitle}</span>
           </div>
 
           <form onSubmit={handleReportSubmit} className="space-y-5">
@@ -179,7 +193,7 @@ export const ReportForm: React.FC = () => {
               >
                 {AVAILABLE_ZONES.map((z) => (
                   <option key={z} value={z}>
-                    {z}
+                    {getTranslatedZone(z, t)}
                   </option>
                 ))}
               </select>
@@ -195,12 +209,12 @@ export const ReportForm: React.FC = () => {
                 onChange={(e) => setIssueType(e.target.value as IssueType)}
                 className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-gray-900 focus:ring-2 focus:ring-[#10B981] focus:border-[#10B981] outline-none transition-all cursor-pointer"
               >
-                <option value="Garbage Accumulation">Garbage Accumulation (कचरा साचणे)</option>
-                <option value="Overflowing Bin">Overflowing Bin (कचराकुंडी ओसंडून वाहणे)</option>
-                <option value="Illegal Dumping">Illegal Dumping (उघड्यावर कचरा टाकणे)</option>
-                <option value="Missed Collection">Missed Collection (गाडी न येणे)</option>
-                <option value="Improper Segregation">Improper Segregation (कचरा न वेगळा करणे)</option>
-                <option value="Other">Other Waste Issue (इतर समस्या)</option>
+                <option value="Garbage Accumulation">{t.issueGarbage}</option>
+                <option value="Overflowing Bin">{t.issueOverflow}</option>
+                <option value="Illegal Dumping">{t.issueDumping}</option>
+                <option value="Missed Collection">{t.issueMissed}</option>
+                <option value="Improper Segregation">{t.issueSegregation}</option>
+                <option value="Other">{t.issueOther}</option>
               </select>
             </div>
 
@@ -210,7 +224,7 @@ export const ReportForm: React.FC = () => {
                 <label className="block text-xs font-bold uppercase text-gray-700">
                   {t.reportPhoto} <span className="text-rose-500">*</span>
                 </label>
-                <span className="text-[10px] text-gray-500 font-medium">Camera or file upload</span>
+                <span className="text-[10px] text-gray-500 font-medium">{t.reportPhotoNote}</span>
               </div>
 
               <div className="border-2 border-dashed border-gray-200 hover:border-[#10B981] bg-gray-50 rounded-xl p-4 text-center transition-all space-y-3">
@@ -226,14 +240,14 @@ export const ReportForm: React.FC = () => {
                       onClick={() => cameraInputRef.current?.click()}
                       className="px-3 py-1.5 bg-[#10B981] text-[#0F2E23] font-bold text-xs rounded-lg shadow cursor-pointer flex items-center gap-1.5"
                     >
-                      <Camera className="w-3.5 h-3.5" /> Retake
+                      <Camera className="w-3.5 h-3.5" /> {t.reportRetake}
                     </button>
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
                       className="px-3 py-1.5 bg-white text-gray-900 font-bold text-xs rounded-lg shadow cursor-pointer flex items-center gap-1.5"
                     >
-                      <Upload className="w-3.5 h-3.5" /> Upload
+                      <Upload className="w-3.5 h-3.5" /> {t.reportUploadFile}
                     </button>
                   </div>
                 </div>
@@ -262,7 +276,7 @@ export const ReportForm: React.FC = () => {
                     }
                     className="px-2.5 py-2 text-gray-600 hover:text-gray-900 text-xs font-semibold rounded-lg hover:bg-gray-100 transition-all cursor-pointer flex items-center gap-1"
                   >
-                    <ImageIcon className="w-3.5 h-3.5" /> Sample
+                    <ImageIcon className="w-3.5 h-3.5" /> {t.reportSample}
                   </button>
                 </div>
 
@@ -299,7 +313,7 @@ export const ReportForm: React.FC = () => {
                   className="px-3 py-1.5 bg-[#10B981] hover:bg-[#059669] text-white font-bold rounded-lg transition-all text-xs cursor-pointer disabled:opacity-50 shrink-0 shadow-xs flex items-center gap-1"
                 >
                   <MapPin className="w-3 h-3" />
-                  {isLocating ? 'Locating...' : gpsLocked ? 'GPS Verified ✓' : t.reportLocateBtn}
+                  {isLocating ? t.reportLocating : gpsLocked ? t.reportGpsVerified : t.reportLocateBtn}
                 </button>
               </div>
             </div>
@@ -313,7 +327,7 @@ export const ReportForm: React.FC = () => {
                 rows={3}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Provide location landmark and details (e.g. Near Station Road platform 1 corner)..."
+                placeholder={t.reportDescPlaceholder}
                 className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:ring-2 focus:ring-[#10B981] outline-none transition-all resize-none"
               ></textarea>
             </div>
@@ -326,7 +340,7 @@ export const ReportForm: React.FC = () => {
             >
               {analyzingAi ? (
                 <>
-                  <Sparkles className="w-4 h-4 animate-spin text-[#10B981]" /> Running AI Severity Assessment...
+                  <Sparkles className="w-4 h-4 animate-spin text-[#10B981]" /> {t.reportAnalyzingBtn}
                 </>
               ) : (
                 <>
@@ -344,16 +358,16 @@ export const ReportForm: React.FC = () => {
             <div className="bg-[#0F2E23] text-white p-6 rounded-2xl border border-[#154233] shadow-xl space-y-4 animate-in fade-in duration-300">
               <div className="flex items-center justify-between">
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#10B981]/20 text-[#34D399] font-mono text-xs font-bold border border-[#10B981]/30">
-                  <Sparkles className="w-3.5 h-3.5" /> Ticket #{submittedReport.id}
+                  <Sparkles className="w-3.5 h-3.5" /> {t.reportTicketBadge} #{submittedReport.id}
                 </span>
-                <span className="text-xs text-[#10B981] font-bold">AI Priority: {submittedReport.severity}</span>
+                <span className="text-xs text-[#10B981] font-bold">{t.reportAiPriority}: {getTranslatedSeverity(submittedReport.severity, t)}</span>
               </div>
 
               <div className="bg-white/10 p-3 rounded-xl border border-white/10 text-xs space-y-1">
-                <div className="font-bold text-emerald-200">AI Visual Analysis Result</div>
+                <div className="font-bold text-emerald-200">{t.reportAiAnalysisResult}</div>
                 <p className="text-emerald-100">{submittedReport.aiAnalysis.interpretation}</p>
                 <div className="text-[10px] text-emerald-300 font-mono mt-1">
-                  Confidence: {submittedReport.aiAnalysis.confidence}% | Zone: {submittedReport.location.zone}
+                  {t.scannerConfidence}: {submittedReport.aiAnalysis.confidence}% | {t.loginZoneLabel}: {getTranslatedZone(submittedReport.location.zone, t)}
                 </div>
               </div>
 
@@ -361,11 +375,11 @@ export const ReportForm: React.FC = () => {
               <div className="pt-2">
                 <div className="text-xs font-bold text-gray-300 mb-3 flex items-center justify-between">
                   <span>{t.reportTimelineTitle}</span>
-                  <span className="text-[10px] font-mono text-emerald-400">Live Status</span>
+                  <span className="text-[10px] font-mono text-emerald-400">{t.reportLiveStatus}</span>
                 </div>
                 <div className="flex items-center justify-between text-[11px] font-semibold text-center relative">
                   <div className="absolute top-3 inset-x-0 h-0.5 bg-white/20 -z-0"></div>
-                  {['Submitted', 'AI Analysis', 'Assigned', 'In Progress', 'Resolved'].map((step, idx) => {
+                  {timelineSteps.map((step, idx) => {
                     const isDone = idx <= 1 || (submittedReport.status === 'Resolved' && idx <= 4);
                     return (
                       <div key={step} className="relative z-10 flex flex-col items-center gap-1">
@@ -403,22 +417,26 @@ export const ReportForm: React.FC = () => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 pb-3">
               <div>
                 <h3 className="font-extrabold text-gray-900 text-base">{t.reportFeedTitle}</h3>
-                <p className="text-xs text-gray-500">{reports.length} total logged incidents (Saved Locally)</p>
+                <p className="text-xs text-gray-500">{reports.length} {t.reportFeedSubtitle}</p>
               </div>
 
               {/* Filter Tabs */}
               <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl text-xs font-semibold">
-                {['ALL', 'HIGH', 'MEDIUM'].map((sev) => (
+                {[
+                  { key: 'ALL', label: t.reportFilterAll },
+                  { key: 'HIGH', label: t.reportFilterHigh },
+                  { key: 'MEDIUM', label: t.reportFilterMedium }
+                ].map((sev) => (
                   <button
-                    key={sev}
-                    onClick={() => setFilterSeverity(sev)}
+                    key={sev.key}
+                    onClick={() => setFilterSeverity(sev.key)}
                     className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                      filterSeverity === sev
+                      filterSeverity === sev.key
                         ? 'bg-white text-gray-900 font-bold shadow-2xs'
                         : 'text-gray-500 hover:text-gray-900'
                     }`}
                   >
-                    {sev}
+                    {sev.label}
                   </button>
                 ))}
               </div>
@@ -438,9 +456,9 @@ export const ReportForm: React.FC = () => {
                           <Clock className="w-3 h-3" /> {new Date(report.timestamp).toLocaleDateString()}
                         </span>
                       </div>
-                      <h4 className="font-bold text-gray-900 text-sm mt-0.5">{report.issueType}</h4>
+                      <h4 className="font-bold text-gray-900 text-sm mt-0.5">{getTranslatedIssueType(report.issueType, t)}</h4>
                       <p className="text-xs text-gray-600 flex items-center gap-1 mt-0.5 font-medium">
-                        <MapPin className="w-3 h-3 text-[#10B981]" /> {report.location.address} ({report.location.zone})
+                        <MapPin className="w-3 h-3 text-[#10B981]" /> {report.location.address} ({getTranslatedZone(report.location.zone, t)})
                       </p>
                     </div>
 
@@ -453,7 +471,7 @@ export const ReportForm: React.FC = () => {
                             : 'bg-emerald-100 text-emerald-800'
                       }`}
                     >
-                      {report.severity} PRIORITY
+                      {getTranslatedSeverity(report.severity, t)}
                     </span>
                   </div>
 
@@ -464,7 +482,7 @@ export const ReportForm: React.FC = () => {
                   <div className="flex items-center justify-between text-[11px] text-gray-500 pt-1 border-t border-gray-200/50">
                     <span className="flex items-center gap-1 text-[#10B981] font-semibold">
                       <CheckCircle2 className="w-3.5 h-3.5" />
-                      Status: {report.status}
+                      {getTranslatedStatus(report.status, t)}
                     </span>
 
                     {report.status !== 'Resolved' ? (
@@ -472,11 +490,11 @@ export const ReportForm: React.FC = () => {
                         onClick={() => handleConfirmResolved(report.id)}
                         className="text-[11px] text-emerald-700 hover:text-emerald-900 font-bold hover:underline flex items-center gap-1 cursor-pointer"
                       >
-                        <ThumbsUp className="w-3 h-3" /> {t.reportConfirmResolved}
+                        <ThumbsUp className="w-3.5 h-3.5" /> {t.reportConfirmResolved}
                       </button>
                     ) : (
                       <span className="text-[11px] text-emerald-600 font-bold flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" /> {t.reportResolved}
+                        <CheckCircle2 className="w-3.5 h-3.5" /> {t.reportResolved}
                       </span>
                     )}
                   </div>
