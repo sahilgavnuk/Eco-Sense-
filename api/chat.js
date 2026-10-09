@@ -2,12 +2,12 @@
 // Runs securely on Vercel and local Vite dev server. Keeps API keys hidden from frontend.
 
 const CANDIDATE_MODELS = [
-  'gemini-3.6-flash',
-  'gemini-3.5-flash',
-  'gemini-3.7-flash',
   'gemini-3.8-flash',
+  'gemini-3.5-flash',
   'gemini-3.5-flash-lite',
-  'gemini-3.1-flash-lite'
+  'gemini-3.1-flash-lite',
+  'gemini-3.7-flash',
+  'gemini-3.6-flash'
 ];
 
 const SYSTEM_INSTRUCTION = `You are EcoSense AI Copilot, a certified Senior Environmental Engineer and the helpful official assistant for the EcoSense AI platform.
@@ -88,6 +88,14 @@ export default async function handler(req, res) {
     contents.push({ role: 'user', parts: [{ text: userText }] });
   }
 
+  // Ensure first turn in contents is always from user
+  while (contents.length > 0 && contents[0].role !== 'user') {
+    contents.shift();
+  }
+  if (contents.length === 0) {
+    contents.push({ role: 'user', parts: [{ text: userText }] });
+  }
+
   let lastError = null;
 
   for (const model of CANDIDATE_MODELS) {
@@ -112,10 +120,16 @@ export default async function handler(req, res) {
           }),
         });
 
-        if (geminiRes.status === 503 || geminiRes.status === 429) {
+        if (geminiRes.status === 429) {
           const errBody = await geminiRes.json().catch(() => ({}));
-          lastError = errBody?.error?.message || `Status ${geminiRes.status}`;
-          await wait(300 * attempt);
+          lastError = errBody?.error?.message || `Quota limit on ${model}`;
+          break; // Immediately fail over to next model
+        }
+
+        if (geminiRes.status === 503) {
+          const errBody = await geminiRes.json().catch(() => ({}));
+          lastError = errBody?.error?.message || `Service unavailable on ${model}`;
+          await wait(200 * attempt);
           continue;
         }
 
