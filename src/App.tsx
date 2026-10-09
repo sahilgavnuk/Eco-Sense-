@@ -9,6 +9,7 @@ import ReportForm from './components/report/ReportForm';
 import ChallengesView from './components/challenges/ChallengesView';
 import DashboardView from './components/dashboard/DashboardView';
 import LoginModal from './components/auth/LoginModal';
+import FloatingChatbot from './components/chat/FloatingChatbot';
 import { EcoProvider, useEco } from './context/EcoContext';
 
 function AppContent() {
@@ -64,6 +65,9 @@ function AppContent() {
 
       {/* Footer */}
       <Footer onNavigate={handleNavigate} />
+
+      {/* Floating EcoSense AI Chatbot */}
+      <FloatingChatbot />
 
       {/* Mobile Bottom Navigation */}
       <MobileNav activeTab={activeTab} setActiveTab={handleNavigate} />
