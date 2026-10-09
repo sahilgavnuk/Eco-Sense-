@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Camera, BarChart3, Bot, ShieldAlert, Trophy, LayoutDashboard, Leaf, Menu, X, Globe, User } from 'lucide-react';
+import { Camera, BarChart3, ShieldAlert, Trophy, LayoutDashboard, Leaf, Menu, X, Globe, User } from 'lucide-react';
 import { useEco } from '../../context/EcoContext';
 
 interface NavbarProps {
@@ -16,7 +16,6 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
     { id: 'scanner', label: t.navScanner, icon: Camera },
     { id: 'analytics', label: t.navCommunity, icon: BarChart3 },
     { id: 'challenges', label: t.navEcoScore, icon: Trophy },
-    { id: 'copilot', label: t.navCopilot, icon: Bot },
     { id: 'report', label: t.navReport, icon: ShieldAlert },
     { id: 'dashboard', label: t.navDashboard, icon: LayoutDashboard }
   ];

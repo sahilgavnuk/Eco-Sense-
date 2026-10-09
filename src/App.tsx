@@ -5,7 +5,6 @@ import Footer from './components/layout/Footer';
 import LandingPage from './pages/LandingPage';
 import ScannerInterface from './components/scanner/ScannerInterface';
 import AnalyticsView from './components/analytics/AnalyticsView';
-import EcoCopilotChat from './components/copilot/EcoCopilotChat';
 import ReportForm from './components/report/ReportForm';
 import ChallengesView from './components/challenges/ChallengesView';
 import DashboardView from './components/dashboard/DashboardView';
@@ -39,8 +38,6 @@ function AppContent() {
         );
       case 'analytics':
         return <AnalyticsView />;
-      case 'copilot':
-        return <EcoCopilotChat />;
       case 'report':
         return <ReportForm />;
       case 'challenges':

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Camera, Sparkles, ArrowRight, Layers, BarChart3, Bot, ShieldAlert } from 'lucide-react';
+import { Camera, Sparkles, ArrowRight, Layers, BarChart3, Trophy, ShieldAlert } from 'lucide-react';
 import ScannerInterface from '../components/scanner/ScannerInterface';
 import { useEco } from '../context/EcoContext';
 
@@ -155,15 +155,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
           </div>
 
           <div
-            onClick={() => onNavigate('copilot')}
+            onClick={() => onNavigate('challenges')}
             className="p-6 rounded-2xl bg-white border border-gray-200 shadow-md hover:shadow-xl transition-all cursor-pointer space-y-3 group"
           >
-            <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold group-hover:scale-110 transition-all">
-              <Bot className="w-6 h-6" />
+            <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold group-hover:scale-110 transition-all">
+              <Trophy className="w-6 h-6" />
             </div>
             <h3 className="font-bold text-gray-900 text-lg">{t.ecosystemCard2Title}</h3>
             <p className="text-xs text-gray-600">{t.ecosystemCard2Desc}</p>
-            <span className="inline-flex items-center gap-1 text-xs font-bold text-purple-600 pt-2">
+            <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-600 pt-2">
               {t.ecosystemCard2Cta} <ArrowRight className="w-3.5 h-3.5" />
             </span>
           </div>

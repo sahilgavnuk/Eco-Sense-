@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Camera, ShieldAlert, Bot, User } from 'lucide-react';
+import { Home, Camera, ShieldAlert, Trophy, User } from 'lucide-react';
 import { useEco } from '../../context/EcoContext';
 
 interface MobileNavProps {
@@ -44,13 +44,13 @@ export const MobileNav: React.FC<MobileNavProps> = ({ activeTab, setActiveTab })
       </button>
 
       <button
-        onClick={() => setActiveTab('copilot')}
+        onClick={() => setActiveTab('challenges')}
         className={`flex flex-col items-center gap-1 text-[10px] font-semibold cursor-pointer ${
-          activeTab === 'copilot' ? 'text-[#10B981]' : 'text-gray-400'
+          activeTab === 'challenges' ? 'text-[#10B981]' : 'text-gray-400'
         }`}
       >
-        <Bot className="w-5 h-5" />
-        <span>{t.navCopilot}</span>
+        <Trophy className="w-5 h-5" />
+        <span>{t.navEcoScore}</span>
       </button>
 
       <button
