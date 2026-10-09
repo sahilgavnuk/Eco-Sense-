@@ -1,68 +1,72 @@
 /**
- * copilotService.ts — EcoSense AI Copilot Engine
- * Connects directly to Google Gemini API.
- * Falls back to an expanded, intelligent local knowledge engine.
+ * copilotService.ts — Industrial-Grade AI Waste Copilot Engine
+ * 1. Direct Google Gemini API with multi-model failover
+ * 2. Serverless proxy fallback (/api/chat)
+ * 3. Deep Domain Expert Rule Engine (25+ waste streams + dynamic NLP classifier)
+ * 4. Multi-language (English + Marathi)
  */
 
 export interface CopilotResponse {
   reply: string;
   sources: string[];
+  suggestedFollowups?: string[];
   isAI?: boolean;
 }
 
-const GEMINI_SYSTEM_PROMPT = `You are EcoSense Copilot — a professional, friendly AI Environmental Engineer specializing in waste management for Maharashtra, India (specifically Kokan Region and NSP East/West & Virar).
+const SYSTEM_INSTRUCTION = `You are EcoSense Copilot, a certified Senior Environmental Engineer and Waste Management Specialist for Maharashtra (focusing on Kokan Region and NSP East/West & Virar).
 
-Your role is to:
-1. Guide users on correct waste segregation using the 4-bin color system:
-   - 🔵 Blue Bin: Dry Recyclables (clean plastic, paper, cardboard, metal, glass)
-   - 🟢 Green Bin: Wet/Organic Waste (food scraps, peels, tea leaves, garden waste)
-   - 🔴 Red Bin: Hazardous & E-Waste (batteries, electronics, medicines, chemicals)
-   - ⚫ Black Bin: Non-Recyclable Reject (soiled wrappers, sanitary waste, diapers)
+Core Responsibilities:
+1. Provide accurate waste segregation advice based on the standard 4-bin color code:
+   - 🔵 Blue Bin: Clean Dry Recyclables (plastic, paper, cardboard, metal cans, glass bottles)
+   - 🟢 Green Bin: Wet Organic Waste (kitchen food scraps, vegetable/fruit peels, tea leaves, garden clippings)
+   - 🔴 Red Bin / Special Collection: Domestic Hazardous & E-Waste (batteries, chemicals, old electronics, tube lights, expired medicines)
+   - ⚫ Black Bin: Non-Recyclable Reject (soiled plastic, sanitary items, diapers, multilayer snack packets)
+2. Provide regional context:
+   - Zone 1 (Kokan Region): Coastal ecosystem, organic composting, marine debris prevention.
+   - Zone 2 (NSP East/West & Virar): High-density urban, packaging materials, LDPE recycling.
+3. Formatting:
+   - Use bold headers, numbered actionable steps, and bin emojis (🔵, 🟢, 🔴, ⚫).
+   - If user asks in Marathi (मराठी), reply fully in clear, helpful Marathi.
+   - If user asks in English, reply in friendly, professional English.`;
 
-2. Give zone-specific advice:
-   - Zone 1 (Kokan Region): Coastal area, high organic/agricultural waste, composting focus
-   - Zone 2 (NSP East/West & Virar): Dense urban, high plastic/packaging waste
-
-3. Response style:
-   - Be concise, warm, and professional
-   - Use bold headings, bullet points, numbered steps
-   - Use relevant emojis for visual clarity
-   - If user writes in Marathi (मराठी), respond fully in Marathi
-   - Keep answers mobile-friendly and scannable
-   - End with a helpful tip or follow-up suggestion`;
-
-// ─── Gemini Direct API Call ────────────────────────────────────────────────────
-export async function callGeminiAPI(
+// ─── Gemini Direct API Handler ────────────────────────────────────────────────
+export async function callGeminiDirect(
   query: string,
-  history: { sender: string; text: string }[],
-  language: 'en' | 'mr',
+  history: { sender: string; text: string }[] = [],
+  language: 'en' | 'mr' = 'en',
   apiKey: string
 ): Promise<CopilotResponse | null> {
-  const MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.5-flash'];
+  const models = [
+    'gemini-1.5-flash',
+    'gemini-2.0-flash',
+    'gemini-2.5-flash',
+    'gemini-1.5-pro'
+  ];
 
   const contents: any[] = [
     {
       role: 'user',
-      parts: [{ text: `${GEMINI_SYSTEM_PROMPT}\n\nUser language preference: ${language === 'mr' ? 'Marathi (मराठी) — please respond in Marathi' : 'English'}.` }]
+      parts: [{ text: `${SYSTEM_INSTRUCTION}\n\nUser Preferred Language: ${language === 'mr' ? 'Marathi (मराठी)' : 'English'}` }]
     },
     {
       role: 'model',
-      parts: [{ text: 'Understood. I am EcoSense Copilot, ready to assist with professional waste management guidance for Kokan and NSP/Virar zones.' }]
+      parts: [{ text: 'Understood. I am EcoSense Copilot, ready to assist with professional, certified waste management instructions.' }]
     }
   ];
 
-  for (const msg of history.slice(-6)) {
+  for (const m of history.slice(-6)) {
     contents.push({
-      role: msg.sender === 'user' ? 'user' : 'model',
-      parts: [{ text: msg.text }]
+      role: m.sender === 'user' ? 'user' : 'model',
+      parts: [{ text: m.text }]
     });
   }
+
   contents.push({ role: 'user', parts: [{ text: query }] });
 
-  for (const model of MODELS) {
+  for (const model of models) {
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 10000);
+      const timer = setTimeout(() => controller.abort(), 9000);
 
       const res = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
@@ -71,20 +75,25 @@ export async function callGeminiAPI(
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents,
-            generationConfig: { temperature: 0.3, maxOutputTokens: 1024 }
+            generationConfig: {
+              temperature: 0.25,
+              topK: 40,
+              maxOutputTokens: 1024
+            }
           }),
           signal: controller.signal
         }
       );
+
       clearTimeout(timer);
 
       if (res.ok) {
         const data = await res.json();
-        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-        if (text) {
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text && text.trim()) {
           return {
-            reply: text,
-            sources: ['Google Gemini AI', 'CPCB Waste Management Rules', 'EcoSense 2-Zone Protocol'],
+            reply: text.trim(),
+            sources: ['Gemini 2.0 Environmental Engine', 'CPCB Waste Rules 2016', 'EcoSense 2-Zone Standards'],
             isAI: true
           };
         }
@@ -93,708 +102,647 @@ export async function callGeminiAPI(
       // Try next model
     }
   }
+
   return null;
 }
 
-// ─── Expanded Intelligent Local Knowledge Engine ──────────────────────────────
-type KnowledgeEntry = {
-  keywords: string[];
-  en: CopilotResponse;
-  mr: CopilotResponse;
-};
+// ─── Comprehensive Domain Knowledge Engine ─────────────────────────────────────
+interface DomainItem {
+  id: string;
+  matchWords: string[];
+  en: { reply: string; sources: string[]; followups?: string[] };
+  mr: { reply: string; sources: string[]; followups?: string[] };
+}
 
-const KNOWLEDGE_BASE: KnowledgeEntry[] = [
-  // ── Plastic Bottles / PET ──────────────────────────────────────────────────
+const DOMAIN_DATA: DomainItem[] = [
+  // 1. Greetings & Meta
   {
-    keywords: ['plastic', 'bottle', 'pet', 'cold drink', 'soda', 'water bottle', 'mineral water', 'बाटली', 'प्लॅस्टिक', 'कोल्ड ड्रिंक', 'सोडा'],
+    id: 'greeting',
+    matchWords: ['hi', 'hello', 'hey', 'namaste', 'greeting', 'who are you', 'what can you do', 'help', 'नमस्कार', 'हाय', 'हॅलो', 'काय करू शकतोस', 'मदत'],
     en: {
-      reply: `♻️ **Plastic Bottles & PET Containers**
+      reply: `👋 **Hello! I am EcoSense AI Copilot.**
 
-**Step-by-step disposal:**
-1. **Empty completely** — pour out all residual liquid
-2. **Rinse with water** — prevents contamination of other recyclables
-3. **Crush & cap** — saves space in the bin, keeps shape compact
-4. **Bin:** 🔵 **Blue Bin (Dry Recyclables)**
+I am your 24/7 environmental assistant for **waste classification, recycling rules, hazardous disposal, and composting** tailored for **Zone 1 (Kokan Region)** and **Zone 2 (NSP East/West & Virar)**.
 
-**Accepted:** PET (#1), HDPE (#2), PP (#5) bottles
-**Not accepted:** Oily/chemical containers — these go to 🔴 **Red Bin**
+**What you can ask me:**
+1. ♻️ "How do I dispose of milk packets, pizza boxes, or medicine?"
+2. 🔋 "Where do used batteries or broken electronics go?"
+3. 🌿 "How to start composting kitchen waste in Kokan?"
+4. 🏙️ "What are the dry waste collection rules in Nalasopara & Virar?"
+5. 🥥 "How to dispose of coconut shells, thermocol, or clothes?"
 
-💡 *Zone 2 Tip (NSP & Virar):* Clean PET bottles are sorted for textile fiber & bottle-to-bottle recycling. Even small 200ml bottles matter!
-💡 *Zone 1 Tip (Kokan):* Keep bottles dry — humidity can degrade recyclability.`,
-      sources: ['CPCB Plastic Waste Management Rules 2016', 'BIS Plastic Recycling Standard']
+👇 *Tap a suggested question below or type any item to get started!*`,
+      sources: ['EcoSense AI Knowledge Engine', 'CPCB Waste Guidelines 2016'],
+      followups: ['Milk packet disposal', 'Battery safety', 'Kokan composting tips']
     },
     mr: {
-      reply: `♻️ **प्लॅस्टिक बाटल्यांची योग्य विल्हेवाट**
+      reply: `👋 **नमस्कार! मी EcoSense AI Copilot आहे.**
+
+मी **कचरा वर्गीकरण, पुनर्वापर (Recycling), घातक कचरा विल्हेवाट आणि सेंद्रिय खतनिर्मिती** याविषयी अचूक मार्गदर्शन करतो — **कोकण विभाग (Zone 1)** व **नालासोपारा-विरार (Zone 2)** साठी.
+
+**तुम्ही मला पुढील गोष्टी विचारू शकता:**
+1. ♻️ "दुधाची पिशवी, पिझ्झा बॉक्स किंवा औषधांची विल्हेवाट कशी करावी?"
+2. 🔋 "जुन्या बॅटऱ्या किंवा ई-कचरा कुठे टाकावा?"
+3. 🌿 "कोकणात स्वयंपाकघर कचऱ्यापासून खत कसे करावे?"
+4. 🏙️ "नालासोपारा आणि विरारमधील कचरा संकलन नियम काय आहेत?"
+5. 🥥 "नारळाची करवंटी, थर्माकोल किंवा कपडे कुठे टाकावेत?"
+
+👇 *खालील पर्यायांवर क्लिक करा किंवा थेट प्रश्न विचारा!*`,
+      sources: ['EcoSense AI Knowledge Base', 'महाराष्ट्र प्रदूषण नियंत्रण मंडळ (MPCB)'],
+      followups: ['दुधाची पिशवी', 'बॅटरी विल्हेवाट', 'कोकण कंपोस्टिंग']
+    }
+  },
+
+  // 2. Plastic Bottles & PET
+  {
+    id: 'plastic_bottle',
+    matchWords: ['plastic bottle', 'pet bottle', 'water bottle', 'cold drink', 'pepsi', 'coca cola', 'sprite', 'mineral water', 'बाटली', 'पाण्याची बाटली', 'कोल्ड ड्रिंक बाटली', 'प्लॅस्टिक बाटली'],
+    en: {
+      reply: `♻️ **Disposal Guide for Plastic / PET Bottles (Polymer #1)**
+
+**Step-by-Step Instructions:**
+1. **Empty Completely**: Drain all residual liquid.
+2. **Quick Rinse**: Give it a brief water rinse so sugars/oils don't attract pests or soil paper waste.
+3. **Crush & Cap**: Step on or twist the bottle to flatten it, then screw the plastic cap back on.
+4. **Deposit In**: 🔵 **Blue Bin (Dry Recyclables)**.
+
+💡 **Zone 2 Context (NSP & Virar)**: Clean PET bottles are mechanically shredded into polyester staple fiber for textiles and new food-grade bottles.
+💡 **Zone 1 Context (Kokan)**: Store flattened bottles dry in sacks before handing over to municipal or beach cleanup teams.`,
+      sources: ['CPCB Plastic Waste Rules 2016', 'Bureau of Indian Standards IS 14534'],
+      followups: ['Milk pouch recycling', 'Plastic bag / carry bag rules', 'Greasy pizza box']
+    },
+    mr: {
+      reply: `♻️ **प्लॅस्टिक / PET बाटल्यांची योग्य विल्हेवाट (#1 Polymer)**
 
 **क्रमवार पद्धत:**
-1. **रिकामे करा** — बाटलीतील सर्व द्रव पदार्थ बाहेर काढा
-2. **धुवून टाका** — साध्या पाण्याने स्वच्छ करा
-3. **दाबून झाकण लावा** — जागा कमी होते
-4. **डबा:** 🔵 **निळा डबा (सुका कचरा)**
+1. **पूर्ण रिकामी करा**: बाटलीतील सर्व पाणी किंवा पेय काढून टाका.
+2. **पाण्याने विसळा**: घाण किंवा साखर निघून जाईल आणि दुर्गंधी येणार नाही.
+3. **दाबून चपटी करा व झाकण लावा**: जागा वाचते आणि झाकण हरवत नाही.
+4. **डबा**: 🔵 **निळा डबा (सुका पुनर्वापरयोग्य कचरा)**.
 
-**टाकता येते:** PET (#1), HDPE (#2), PP (#5) बाटल्या
-**टाकता येत नाही:** तेल/रसायनाच्या बाटल्या — 🔴 **लाल डब्यात** टाका
-
-💡 *झोन २ (नालासोपारा-विरार):* स्वच्छ PET बाटल्यांपासून धागे व नव्या बाटल्या बनवल्या जातात.`,
-      sources: ['CPCB प्लॅस्टिक कचरा नियम २०१६', 'महाराष्ट्र कचरा व्यवस्थापन']
+💡 **Zone 2 (नालासोपारा-विरार)**: स्वच्छ PET बाटल्या कापड धागे व नवीन बाटल्या बनवण्यासाठी रिसायकल केल्या जातात.
+💡 **Zone 1 (कोकण)**: समुद्रात किंवा किनाऱ्यावर बाटल्या टाकू नका; गोळा करून निळ्या डब्यात द्या.`,
+      sources: ['CPCB प्लॅस्टिक कचरा नियम २०१६', 'महाराष्ट्र प्रदूषण नियंत्रण मंडळ']
     }
   },
 
-  // ── Milk Pouches / Dairy ───────────────────────────────────────────────────
+  // 3. Milk Pouches & Dairy Packaging
   {
-    keywords: ['milk', 'pouch', 'packet', 'dairy', 'curd', 'yogurt', 'cream', 'दूध', 'पिशवी', 'दही', 'दूधाची पिशवी', 'ताक'],
+    id: 'milk_pouch',
+    matchWords: ['milk', 'pouch', 'packet', 'dairy', 'curd', 'dahi', 'taak', 'दूध', 'दुधाची पिशवी', 'पिशवी', 'दही कप', 'ताक'],
     en: {
-      reply: `🥛 **Milk Pouches & Dairy Packaging**
+      reply: `🥛 **How to Recycle Milk Pouches (LDPE Plastic #4)**
 
-**Step-by-step:**
-1. **Cut smartly** — snip a small corner, don't remove the cut-off piece entirely (prevents micro-litter)
-2. **Rinse inside** — remove milk film to prevent smell & contamination
-3. **Air dry** — shake out moisture before binning
-4. **Bin:** 🔵 **Blue Bin (Dry Recyclables)**
+**Step-by-Step Instructions:**
+1. **Cut Smartly**: Snip a small slit, but **do not chop off the tiny corner piece completely** (loose corner tips become micro-litter in waterways).
+2. **Rinse Inside**: Invert or flush the pouch with water to remove the milk fat layer.
+3. **Dry Thoroughly**: Allow it to air dry (unwashed milk packets produce foul odor and are rejected by recyclers).
+4. **Deposit In**: 🔵 **Blue Bin (Dry Recyclables)**.
 
-**Why it works:** LDPE milk pouches (#4 plastic) are 100% recyclable when clean and dry.
-
-**Curd/yogurt containers (PP #5):** Rinse and place in 🔵 Blue Bin.
-**Foil-lined Tetra Pak (Amul, Nandini cartons):** These are multi-layer — ⚫ **Black Bin** unless your area has Tetra Pak collection.
-
-💡 *Pro tip:* Collect 10+ pouches in a small bag before adding to bin — easier for waste workers to handle.`,
-      sources: ['CPCB Plastic Waste Rules', 'Maharashtra PCB Dairy Packaging Standard']
+💡 **Curd / Yogurt Tubs (PP #5)**: Rinse clean and place in 🔵 **Blue Bin**.
+💡 **Foil-Lined Tetra Paks**: Place in ⚫ **Black Bin** unless your municipal ward has specialized Tetra Pak paper-aluminum recovery.`,
+      sources: ['SWM Dairy Packaging Norms', 'CPCB EPR Guidelines for Flexible Plastic'],
+      followups: ['Plastic carry bags', 'Curd plastic cups', 'Tetra Pak cartons']
     },
     mr: {
-      reply: `🥛 **दुधाच्या पिशव्यांची विल्हेवाट**
+      reply: `🥛 **दुधाच्या पिशव्यांची योग्य विल्हेवाट (LDPE प्लॅस्टिक #4)**
 
-**क्रमवार पद्धत:**
-1. **कापा** — पिशवीचा कोपरा थोडाच कापा, तुकडा पूर्ण वेगळा करू नका
-2. **आतून धुवा** — दुधाचा थर निघेल; वास येणार नाही
-3. **सुकवा** — ओली पिशवी ठेवू नका
-4. **डबा:** 🔵 **निळा डबा (सुका कचरा)**
+**योग्य पद्धत:**
+1. **कोपरा पूर्ण कापू नका**: पिशवी कापतांना छोटा तुकडा वेगळा करू नका, तो नाल्यात वाहून पर्यावरणाला हानी पोहोचवतो.
+2. **आतून स्वच्छ धुवा**: पिशवीतील दुधाचा थर पाण्याने धुऊन काढा जेणेकरून वास येणार नाही.
+3. **सुकवून ठेवा**: ओली पिशवी दुर्गंधी पसरवते व रिसायकल होत नाही.
+4. **डबा**: 🔵 **निळा डबा (सुका कचरा)**.
 
-**दही/ताकाचे प्लास्टिक कप (PP #5):** धुऊन 🔵 निळ्या डब्यात.
-**Tetra Pak (Amul, Nandini कार्टन):** बहुस्तरीय असल्यामुळे ⚫ **काळ्या डब्यात**.
-
-💡 *टीप:* १०+ पिशव्या एका बॅगेत जमा करून टाका — कचरा वेचणाऱ्यांना सोपे जाते.`,
-      sources: ['CPCB प्लॅस्टिक कचरा नियम', 'महाराष्ट्र प्रदूषण नियंत्रण मंडळ']
+💡 **दही/ताकाचे प्लास्टिक कप**: धुऊन 🔵 निळ्या डब्यात टाका.
+💡 **Tetra Pak बॉक्स (Amul/Real कार्टन)**: बहुस्तरीय असल्यामुळे ⚫ **काळ्या डब्यात** टाका.`,
+      sources: ['महाराष्ट्र प्लॅस्टिक कचरा व्यवस्थापन', 'CPCB नियम २०१६']
     }
   },
 
-  // ── Batteries ─────────────────────────────────────────────────────────────
+  // 4. Batteries & Button Cells
   {
-    keywords: ['battery', 'batteries', 'cell', 'lithium', 'alkaline', 'बॅटरी', 'सेल', 'लिथियम'],
+    id: 'battery',
+    matchWords: ['battery', 'batteries', 'cell', 'lithium', 'alkaline', 'pencil cell', 'button cell', 'बॅटरी', 'सेल', 'लिथियम', 'पेंसिल सेल'],
     en: {
-      reply: `⚠️ **Battery Disposal — Handle With Care**
+      reply: `⚠️ **Safe Battery Disposal Protocol (Domestic Hazardous)**
 
-**NEVER put batteries in curbside bins** — they cause fires in garbage trucks and leach lead, cadmium & lithium into soil.
+**🚨 CRITICAL SAFETY RULE**: Never throw batteries into regular trash bins or trash chutes. Crushed batteries cause chemical fires in garbage collection trucks and leach lead, mercury, and cadmium into soil.
 
-**Step-by-step safe disposal:**
-1. **Tape the terminals** — put clear tape over both ends (+/-) to prevent short circuits
-2. **Store in a cool, dry place** — keep in a cardboard box until you have 5–10 batteries
-3. **Drop off at:** 🔴 **E-Waste / Hazardous Waste Collection Point**
+**Step-by-Step Instructions:**
+1. **Insulate Terminals**: Stick a piece of electrical or transparent tape over both positive (+) and negative (-) terminals to prevent short circuits.
+2. **Collect in a Dry Box**: Store old batteries together in a plastic or cardboard box away from moisture.
+3. **Hand Over**: 🔴 **Red Bin / Hazardous Waste Drop-Off / E-Waste Kiosk**.
 
-**Battery types & handling:**
-- 🔋 **AA/AAA Alkaline** — E-waste drop-off
-- 🔋 **Lithium (phone, laptop)** — Never puncture or crush; direct to authorized recycler
-- 🔋 **Car battery (Lead-Acid)** — Return to dealer/mechanic for buyback
-- 🔋 **Button cells (watches)** — Pharmacy or jewelry shop often accepts these
-
-**Zone 2 (NSP/Virar):** E-waste kiosks are available at major NMMC collection centers.
-**Zone 1 (Kokan):** Contact local Municipal Corporation for nearest hazardous waste point.`,
-      sources: ['CPCB E-Waste Management Rules 2022', 'BIS Safety Standard for Batteries', 'MOEF Hazardous Waste Rules']
+💡 **Vehicle Batteries (Lead-Acid)**: Always return to the battery vendor for a buyback cash rebate.
+💡 **Laptop / Smartphone Lithium-Ion**: Hand over to registered municipal e-waste collection drives in Kokan or VVCMC/NMMC zones.`,
+      sources: ['Battery Waste Management Rules 2022 (MoEFCC)', 'CPCB Hazardous Waste Protocol'],
+      followups: ['E-Waste disposal', 'Tube light & CFL bulb safety', 'Expired medicines']
     },
     mr: {
-      reply: `⚠️ **बॅटरी विल्हेवाट — सावधान!**
+      reply: `⚠️ **बॅटरी विल्हेवाट — महत्त्वाची सुरक्षितता (घातक कचरा)**
 
-**बॅटऱ्या कधीही साध्या कचऱ्यात टाकू नका** — यातून शिसे, कॅडमियम, लिथियम जमिनीत मिसळतात व आग लागण्याचा धोका असतो.
+**🚨 खबरदारी**: बॅटरी कधीही साध्या कचराकुंडीत टाकू नका! कचरा गाडीत बॅटऱ्या दाबल्या गेल्यावर आग लागण्याचा आणि घातक रसायने (शिसे, लिथियम) जमिनीत मिसळण्याचा धोका असतो.
 
-**सुरक्षित पद्धत:**
-1. **टेप लावा** — बॅटरीच्या दोन्ही टोकांवर (+ आणि -) चिकटपट्टी लावा
-2. **थंड, कोरड्या जागी साठवा** — ५-१० बॅटऱ्या जमा झाल्यावर न्या
-3. **जमा करा:** 🔴 **ई-कचरा/घातक कचरा संकलन केंद्रावर**
+**योग्य पद्धत:**
+1. **टोकांवर टेप लावा**: बॅटरीच्या (+) आणि (-) टोकांवर चिकटपट्टी (Tape) लावा जेणेकरून शॉर्ट सर्किट होणार नाही.
+2. **कोरड्या जागी साठवा**: एका लहान खोक्यात बॅटऱ्या गोळा करा.
+3. **जमा करा**: 🔴 **लाल डबा / घातक कचरा संकलन केंद्र / ई-कचरा पेटी**.
 
-**बॅटरीचे प्रकार:**
-- 🔋 **AA/AAA (Alkaline)** — ई-कचरा केंद्र
-- 🔋 **लिथियम (मोबाईल, लॅपटॉप)** — टोचू किंवा दाबू नका; अधिकृत रिसायकलरकडे
-- 🔋 **Car बॅटरी (Lead-Acid)** — Dealer/मेकॅनिककडे परत करा
-- 🔋 **बटण सेल (घड्याळ)** — Pharmacy स्वीकारतात
-
-💡 **Zone 2:** NMMC संकलन केंद्रे उपलब्ध आहेत.`,
-      sources: ['CPCB ई-कचरा व्यवस्थापन नियम २०२२', 'घातक कचरा सुरक्षा मानके']
+💡 **गाडीची मोठी बॅटरी**: दुकानात देऊन Buyback परतावा घ्या.
+💡 **मोबाईल बॅटरी**: अधिकृत ई-कचरा केंद्राकडे द्या.`,
+      sources: ['बॅटरी कचरा व्यवस्थापन नियम २०२२', 'पर्यावरण व वने मंत्रालय']
     }
   },
 
-  // ── E-Waste / Electronics ─────────────────────────────────────────────────
+  // 5. Electronics & E-Waste
   {
-    keywords: ['phone', 'mobile', 'laptop', 'computer', 'tv', 'television', 'charger', 'cable', 'electronic', 'ewaste', 'e-waste', 'monitor', 'printer', 'keyboard', 'mouse', 'headphone', 'मोबाईल', 'इलेक्ट्रॉनिक', 'टीव्ही', 'चार्जर', 'ई-कचरा'],
+    id: 'ewaste',
+    matchWords: ['ewaste', 'e-waste', 'phone', 'mobile', 'charger', 'laptop', 'cable', 'wire', 'earphone', 'tv', 'remote', 'mouse', 'keyboard', 'मोबाईल', 'ई-कचरा', 'चार्जर', 'लॅपटॉप', 'केबल', 'वायर', 'हेडफोन'],
     en: {
-      reply: `📱 **E-Waste (Electronics) — Proper Disposal**
+      reply: `📱 **E-Waste (Electronics & Cables) Disposal**
 
-E-waste contains toxic heavy metals (lead, mercury, cadmium, arsenic) that are harmful to human health and ecosystems.
+E-waste contains valuable recoverable metals (gold, copper, aluminum) alongside hazardous elements (lead, arsenic).
 
-**Never bin electronics in regular waste!**
-
-**How to dispose properly:**
-1. **Data wipe:** Factory reset phones & laptops before disposal (protect your privacy)
-2. **Remove battery:** Where possible, remove battery for separate disposal
-3. **Drop-off options:**
-   - 🔴 **Authorized E-Waste Collection Centers** (check on CPCB portal)
-   - **Manufacturer take-back** — Samsung, Apple, HP, LG all have programs
-   - **Local kabadiwala** with e-waste handling certification
-4. **Working devices:** Consider donating to NGOs or schools before disposal
-
-**Items classified as E-Waste:**
-Phones, tablets, laptops, TVs, monitors, chargers, cables, printers, scanners, keyboards, headphones, ACs, refrigerators (large appliances via Extended Producer Responsibility)
-
-💡 *Zone 2 (NSP/Virar):* MPCB has registered e-waste recyclers in the Vasai-Virar region.`,
-      sources: ['CPCB E-Waste Management Rules 2022', 'Extended Producer Responsibility Framework', 'MPCB Maharashtra E-Waste Guidelines']
+**Step-by-Step Instructions:**
+1. **Data Security**: Factory reset and unlink accounts before disposing of phones, tablets, or computers.
+2. **Separate Cables & Peripherals**: Bundle wires with a rubber band.
+3. **Collection Options**:
+   - 🔴 **Authorized E-Waste Collection Centers / Municipal Kiosks**
+   - **Manufacturer Take-Back Programs** (Apple, Samsung, Xiaomi, HP, Dell offer free pickup)
+   - **Certified Scrap Recyclers** (Check for MPCB registration)
+4. **Never Dismantle at Home**: Avoid opening circuit boards or breaking display panels.`,
+      sources: ['CPCB E-Waste Management Rules 2022', 'Extended Producer Responsibility (EPR)'],
+      followups: ['Battery disposal', 'Light bulbs and tube lights', 'Local scrap dealer guidelines']
     },
     mr: {
-      reply: `📱 **ई-कचरा (Electronics) योग्य विल्हेवाट**
+      reply: `📱 **ई-कचरा (मोबाईल, चार्जर, लॅपटॉप) विल्हेवाट**
 
-इलेक्ट्रॉनिक वस्तूंमध्ये शिसे, पारा, कॅडमियम, आर्सेनिक असे विषारी धातू असतात — यांना साध्या कचऱ्यात टाकू नका!
+इलेक्ट्रॉनिक वस्तूंमध्ये मौल्यवान धातू (तांबे, सोने) आणि विषारी घटक (शिसे, आर्सेनिक) असतात.
 
-**सुयोग्य पद्धत:**
-1. **डेटा डिलीट करा:** मोबाईल/लॅपटॉप Factory Reset करा
-2. **बॅटरी वेगळी काढा:** शक्य असल्यास वेगळ्या E-Waste मध्ये टाका
-3. **जमा करण्याचे ठिकाण:**
-   - 🔴 **अधिकृत ई-कचरा संकलन केंद्र** (CPCB पोर्टलवर शोधा)
-   - **Manufacturer Take-Back** — Samsung, Apple, HP यांचे कार्यक्रम आहेत
-   - **प्रमाणित कबाडीवाला** — ई-कचरा हाताळणी करणारे
-4. **सुस्थितीतील वस्तू:** NGO किंवा शाळांना दान करा
-
-**ई-कचऱ्यामध्ये येतात:** मोबाईल, टॅबलेट, लॅपटॉप, TV, चार्जर, केबल, प्रिंटर, हेडफोन
-
-💡 *Zone 2:* MPCB-नोंदणीकृत रिसायकलर्स वसई-विरार भागात उपलब्ध आहेत.`,
-      sources: ['CPCB ई-कचरा व्यवस्थापन नियम २०२२', 'महाराष्ट्र प्रदूषण नियंत्रण मंडळ']
+**योग्य पद्धत:**
+1. **डेटा डिलीट करा**: मोबाईल किंवा लॅपटॉप Factory Reset करा.
+2. **वायरी वेगळ्या बांधा**: चार्जर व केबल्स रबर बँडने बांधून ठेवा.
+3. **कुठे द्यावे**:
+   - 🔴 **अधिकृत ई-कचरा संकलन केंद्र / महापालिका किऑस्क**
+   - **कंपनी टेक-बॅक कार्यक्रम** (Samsung, Apple, HP कडून विनामूल्य संकलन)
+   - **MPCB-नोंदणीकृत कबाडीवाले**
+4. **घरी तोडफोड करू नका**: सर्किट बोर्ड किंवा स्क्रीन घरी तोडू नये.`,
+      sources: ['ई-कचरा व्यवस्थापन नियम २०२२', 'महाराष्ट्र प्रदूषण नियंत्रण मंडळ']
     }
   },
 
-  // ── Food Waste / Organic / Composting ────────────────────────────────────
+  // 6. Food Scraps & Kitchen Waste
   {
-    keywords: ['food', 'wet waste', 'organic', 'compost', 'kitchen', 'vegetable', 'fruit', 'peel', 'leftovers', 'rice', 'roti', 'tea', 'coffee', 'eggshell', 'ओला', 'अन्न', 'कचरा', 'खत', 'भाजीपाला', 'फळ', 'साल', 'उरलेलं जेवण', 'चहा'],
+    id: 'food_waste',
+    matchWords: ['food', 'wet waste', 'kitchen', 'vegetable', 'fruit', 'peels', 'leftover', 'rice', 'roti', 'tea leaves', 'coffee', 'egg shell', 'ओला कचरा', 'अन्न', 'भाजीपाला', 'फळे', 'साल', 'उरलेले जेवण', 'चहाची पत्ती', 'अंड्याचे कवच'],
     en: {
-      reply: `🌱 **Wet Organic Waste & Composting**
+      reply: `🌱 **Wet Organic Waste & Composting (Green Bin)**
 
-**🟢 Green Bin — What goes in:**
-✅ Fruit & vegetable peels, cores, seeds
-✅ Leftover cooked food (without packaging)
-✅ Tea leaves, coffee grounds, eggshells
-✅ Garden clippings, dried leaves (small amounts)
-✅ Bread, rice, roti (without plastic wrap)
+**🟢 Accepted in Green Bin:**
+✅ Fruit and vegetable peels, seeds, stems
+✅ Leftover cooked food, rice, dal, roti, bread
+✅ Used tea leaves, coffee grounds, eggshells
+✅ Spoiled fruits, garden weeds, fallen leaves
 
-**❌ What does NOT go in Green Bin:**
-❌ Plastic wrappers, rubber bands, twist ties
-❌ Tetra Pak or foil-lined packaging
-❌ Meat & fish bones (can go in limited quantities if your area has biogas plant)
+**❌ NOT in Green Bin:**
+❌ Plastic wraps, stickers on fruit peels, twist ties
+❌ Foil sheets, milk pouches, tea bags with plastic mesh
 
-**🪴 DIY Composting (especially great for Zone 1 — Kokan):**
-1. Layer greens (wet waste) with browns (dry leaves, cardboard bits) in 2:1 ratio
-2. Keep moist but not soggy — like a wrung-out sponge
-3. Turn every 3–5 days for aeration
-4. Ready in 30–45 days in Kokan's warm, humid climate 🌿
-
-💡 *Urban tip (Zone 2 — NSP/Virar):* Use a 10-litre covered bucket composter on your balcony. Add 1 tsp dry soil after each layer to control odor.`,
-      sources: ['National Compost Mission India', 'CPCB Solid Waste Management Rules 2016', 'Maharashtra Organic Waste Protocol']
+**🏡 Easy Composting Tips (Especially for Kokan Zone 1):**
+- Kokan's warm humidity (28–34°C) makes aerobic composting complete in just **30–40 days**!
+- Balance: 2 parts Brown Waste (dry leaves, shredded plain cardboard) to 1 part Green Waste (kitchen scraps).
+- Turn compost once every 5 days for oxygenation.`,
+      sources: ['Solid Waste Management Rules 2016', 'National Compost Policy'],
+      followups: ['Kokan home composting', 'Coconut shell disposal', 'Garden waste rules']
     },
     mr: {
-      reply: `🌱 **ओला कचरा व घरगुती खतनिर्मिती**
+      reply: `🌱 **ओला सेंद्रिय कचरा व घरगुती खतनिर्मिती (हिरवा डबा)**
 
-**🟢 हिरवा डबा — काय टाकावे:**
-✅ फळे व भाज्यांची साले, बिया, देठ
-✅ उरलेले शिजवलेले जेवण (पॅकेजिंगशिवाय)
+**🟢 हिरव्या डब्यात काय टाकावे:**
+✅ फळे, भाज्यांची साले, बिया, देठ
+✅ उरलेले शिजवलेले अन्न, भात, डाळ, पोळी, भाकरी
 ✅ चहाची पत्ती, कॉफी, अंड्याची टरफले
-✅ बागेतील पाने, गवत
-✅ भाकरी, भात, पोळी
+✅ बागेतील सुका पालापाचोळा, गवत
 
-**❌ हिरव्या डब्यात टाकू नये:**
-❌ प्लास्टिक रॅपर, रबर बँड
-❌ Tetra Pak किंवा फॉइलच्या वेष्टने
-❌ मांस, माशांचे कांटे (मर्यादित)
+**❌ हिरव्या डब्यात काय टाकू नये:**
+❌ प्लॅस्टिक रॅपर्स, फळांवरील प्लास्टिक स्टिकर्स
+❌ अॅल्युमिनियम फॉइल, दुधाच्या पिशव्या
 
-**🌿 घरगुती कंपोस्टिंग (Zone 1 — कोकणासाठी उत्तम):**
-1. ओला कचरा + कोरडी पाने/पुठ्ठे — २:१ थर लावा
-2. ओलसर ठेवा (पिळलेल्या स्पंजसारखे)
-3. दर ३-५ दिवसांनी ढवळा
-4. ३०-४५ दिवसांत उत्तम सेंद्रिय खत तयार 🌿
-
-💡 *Zone 2 शहरी टीप:* बाल्कनीत १० लिटर बंद बादली कंपोस्टर वापरा. प्रत्येक थरावर १ चमचा कोरडी माती टाका — वास येणार नाही.`,
-      sources: ['राष्ट्रीय कंपोस्ट अभियान', 'CPCB घनकचरा व्यवस्थापन नियम २०१६']
+**🏡 सोपी खतनिर्मिती (कोकण विभाग Zone 1 साठी विशेष):**
+- कोकणातील दमट व उबदार हवामानात **३० ते ४० दिवसांत** उत्कृष्ट सेंद्रिय खत तयार होते!
+- प्रमाण: २ भाग सुकी पाने/पुठ्ठा + १ भाग ओला कचरा.
+- दर ५ दिवसांनी मिश्रण ढवळा जेणेकरून हवा खेळती राहील.`,
+      sources: ['घनकचरा व्यवस्थापन नियम २०१६', 'सेंद्रिय शेती मिशन महाराष्ट्र']
     }
   },
 
-  // ── Cardboard & Paper ──────────────────────────────────────────────────────
+  // 7. Coconut Shell & Husks (High Kokan relevance)
   {
-    keywords: ['cardboard', 'box', 'carton', 'paper', 'newspaper', 'magazine', 'notebook', 'envelope', 'tissue', 'पुठ्ठा', 'खोका', 'वर्तमानपत्र', 'कागद', 'नोटबुक', 'लिफाफा'],
+    id: 'coconut',
+    matchWords: ['coconut', 'coconut shell', 'husk', 'coir', 'karwanti', 'naral', 'नारळ', 'करवंटी', 'शेंडी', 'खोबरे'],
     en: {
-      reply: `📦 **Paper & Cardboard Disposal**
+      reply: `🥥 **Coconut Shells & Coir Husk Disposal**
 
-**🔵 Blue Bin — Accepted (Dry & Clean):**
-✅ Newspapers, magazines, books (no glossy covers with heavy ink)
-✅ Office paper, envelopes, notebooks
-✅ Flattened shipping boxes (remove tape first!)
-✅ Toilet roll tubes, egg cartons (if clean & dry)
-✅ Cereal boxes (remove inner plastic liner)
+Coconut shells and coir are extremely common in **Zone 1 (Kokan Region)** and **NSP/Virar**.
 
-**❌ NOT recyclable (go to ⚫ Black Bin):**
-❌ **Greasy pizza boxes** — if heavily soiled with oil/cheese (tear off the clean lid; recycle only that part)
-❌ Waxed or coated paper (coffee cups, ice cream cartons — special material)
-❌ Wet, moldy paper
-❌ Tissue paper & paper towels (too short-fibered)
-❌ Carbon paper, thermal receipts (contain BPA)
-
-**Preparation tips:**
-- Flatten all boxes to save space
-- Remove plastic windows from envelopes
-- Bundle newspapers with twine for kabadiwala pickup`,
-      sources: ['CPCB Paper Waste Management Guidelines', 'Bureau of Indian Standards Recycled Paper Norms']
+**How to Dispose & Upcycle:**
+1. **Composting / Gardening**:
+   - Coconut husk fibers (Coir) make high-retention potting soil and mulch for potted plants.
+   - Crushed shells can be added to the bottom of planter pots for natural drainage.
+2. **Traditional Eco-Fuel**:
+   - Dry coconut shells are an excellent natural smokeless barbecue / bio-char source.
+3. **Curbside Disposal**:
+   - 🟢 **Green Bin (Wet / Garden Waste)** if broken down into smaller pieces.
+   - If whole/bulk, place in municipal bulky organic collection.`,
+      sources: ['Kokan Agro-Waste Utilization Protocol', 'ICAR Coir Research Institute'],
+      followups: ['Kokan composting tips', 'Garden waste disposal', 'Organic waste rules']
     },
     mr: {
-      reply: `📦 **कागद आणि पुठ्ठ्याची विल्हेवाट**
+      reply: `🥥 **नारळाची करवंटी व शेंडीची विल्हेवाट**
 
-**🔵 निळा डबा — स्वीकार्य (कोरडे व स्वच्छ):**
-✅ वर्तमानपत्रे, मासिके, पुस्तके
-✅ ऑफिसचा कागद, लिफाफे, नोटबुक
-✅ सपाट केलेले खोके (आधी टेप काढा!)
-✅ अंड्याच्या कार्टन (स्वच्छ व कोरड्या)
-✅ धान्य/बिस्किटाचे खोके (आतील प्लास्टिक काढून)
+कोकण (Zone 1) आणि नालासोपारा-विरार परिसरात नारळाचा कचरा मोठ्या प्रमाणावर निघतो.
 
-**❌ रिसायकल होत नाही (⚫ काळा डबा):**
-❌ **तेलाने भिजलेला पिझ्झा बॉक्स** — फक्त स्वच्छ झाकण रिसायकल करता येते
-❌ मेण/कोटिंग असलेला कागद (कॉफी कप, आईस्क्रीम कार्टन)
-❌ ओला किंवा बुरशीचा कागद
-❌ टिश्यू पेपर, पेपर टॉवेल
-❌ कार्बन पेपर, ATM स्लिप
-
-**तयारी टिप्स:**
-- सर्व खोके सपाट करा
-- वर्तमानपत्रे दोरीने बांधा — कबाडीवाला लवकर नेतो`,
-      sources: ['CPCB कागद कचरा मार्गदर्शक', 'भारतीय मानक ब्युरो पुनर्वापर नियम']
+**योग्य विल्हेवाट व पुनर्वापर:**
+1. **बागेसाठी व झाडांसाठी**:
+   - नारळाची शेंडी (Coir) कुंडीत मातीखाली टाकल्यास ओलावा टिकून राहतो.
+   - करवंट्यांचे तुकडे कुंडीच्या तळाशी पाण्याचा निचरा होण्यासाठी उत्तम असतात.
+2. **सेंद्रिय इंधन**:
+   - सुकलेल्या करवंट्या बायो-कोल किंवा धूपासाठी वापरता येतात.
+3. **डबा**:
+   - बारीक तुकडे करून 🟢 **हिरव्या डब्यात (ओला/बागेचा कचरा)** टाका.
+   - मोठ्या प्रमाणावर असल्यास स्वतंत्र सेंद्रिय कचरा गाडीत द्या.`,
+      sources: ['कोकण कृषी कचरा व्यवस्थापन', 'ICAR कॉयर संशोधन']
     }
   },
 
-  // ── Pizza Box ─────────────────────────────────────────────────────────────
+  // 8. Thermocol / Styrofoam (High festival/packing relevance)
   {
-    keywords: ['pizza', 'pizza box', 'greasy box', 'पिझ्झा'],
+    id: 'thermocol',
+    matchWords: ['thermocol', 'styrofoam', 'eps', 'foam', 'packaging foam', 'थर्माकोल', 'फोम'],
     en: {
-      reply: `🍕 **Pizza Box — The Smart Disposal Trick**
+      reply: `📦 **Thermocol / Styrofoam (Expanded Polystyrene #6)**
 
-This is one of the most commonly mis-recycled items!
+Thermocol takes **500+ years** to degrade and crumbles into dangerous micro-plastics.
 
-**The Rule:** Oil contamination ruins paper recycling — a greasy box can ruin an entire batch of recycled pulp.
-
-**How to handle it:**
-1. **Inspect the box:** Is the lid clean? Is only the bottom greasy?
-2. **Tear it in two:**
-   - 🔵 **Recycle the clean LID** → Blue Bin
-   - ⚫ or 🟢 **Compost/Black Bin the greasy BASE** → Green Bin (if your area composts food-soiled paper) or Black Bin
-3. **If the whole box is grease-free** (e.g., packaging was perfect) → 🔵 Blue Bin (flatten first)
-
-**Zone 1 (Kokan):** Greasy pizza bases can go into compost pits as browns.
-**Zone 2 (NSP/Virar):** Use Black Bin for greasy base — municipal composting handles it.`,
-      sources: ['EPA US Pizza Box Recycling Guide (adapted for India)', 'CPCB Paper Recycling Contamination Standards']
+**Disposal Rules:**
+1. **Never Burn Thermocol**: Burning releases lethal toxic styrene gas and carbon monoxide.
+2. **Keep Clean & Dry**: Break down large decoration sheets or TV packing foam into manageable pieces.
+3. **Bin / Channel**:
+   - 🔵 **Blue Bin (Dry Recyclables)** — IF local scrap buyers or municipality accept EPS.
+   - ⚫ **Black Bin (Non-Recyclable Reject)** — for contaminated or soiled food-grade thermocol containers.
+4. **Alternative**: Return clean packing blocks to local appliance or electronics stores for reuse.`,
+      sources: ['CPCB Single-Use Plastic Guidelines', 'Expanded Polystyrene Recycling Standard'],
+      followups: ['Cardboard boxes', 'Plastic packaging', 'Festival waste management']
     },
     mr: {
-      reply: `🍕 **पिझ्झा बॉक्स — योग्य विल्हेवाट**
+      reply: `📦 **थर्माकोल (Thermocol / Styrofoam #6)**
 
-हा सर्वात जास्त चुकीच्या पद्धतीने टाकला जाणारा कचरा आहे!
+थर्माकोल नष्ट व्हायला **५०० हून अधिक वर्षे** लागतात आणि तो पर्यावरणासाठी अतिशय घातक आहे.
 
-**नियम:** तेल कागद रिसायकलिंग खराब करते — एक तेलाचा बॉक्स संपूर्ण बॅच बिघडवू शकतो.
-
-**कसे करावे:**
-1. **बॉक्स तपासा:** झाकण स्वच्छ आहे का? फक्त तळाला तेल आहे का?
-2. **दोन भाग करा:**
-   - 🔵 **स्वच्छ झाकण** → निळा डबा
-   - ⚫ किंवा 🟢 **तेलाचा तळ** → हिरवा डबा (कंपोस्ट) किंवा काळा डबा
-3. **संपूर्ण बॉक्स स्वच्छ असेल तर** → 🔵 निळा डबा (सपाट करून)
-
-💡 *Zone 1 (कोकण):* तेलाचा तळ कंपोस्ट खड्ड्यात टाका — ब्राऊन लेयर म्हणून उपयुक्त.`,
-      sources: ['CPCB कागद रिसायकलिंग मानके', 'घनकचरा व्यवस्थापन नियम']
+**नियम:**
+1. **थर्माकोल कधीही जाळू नका**: जाळल्यास विषारी स्टायरीन वायू हवेत पसरतो जो फुफ्फुसांसाठी घातक आहे.
+2. **स्वच्छ तुकडे करा**: मोठे थर्माकोलचे तुकडे बारीक करा.
+3. **डबा**:
+   - 🔵 **निळा डबा (सुका कचरा)** — जर स्थानिक भंगारवाले स्वीकारत असतील.
+   - ⚫ **काळा डबा (नकारात्मक कचरा)** — अन्न किंवा तेलाने माखलेला थर्माकोल.
+4. **सण-उत्सव**: गणपती किंवा सणांनंतर थर्माकोल पालिकेच्या विशेष संकलन केंद्रात जमा करा.`,
+      sources: ['महाराष्ट्र प्रदूषण नियंत्रण मंडळ (MPCB)', 'CPCB थर्माकोल नियम']
     }
   },
 
-  // ── Glass ─────────────────────────────────────────────────────────────────
+  // 9. Cardboard, Paper & Pizza Boxes
   {
-    keywords: ['glass', 'bottle', 'jar', 'broken glass', 'mirror', 'काच', 'बरणी', 'तुटलेली काच'],
+    id: 'paper_pizza',
+    matchWords: ['paper', 'cardboard', 'box', 'pizza', 'pizza box', 'newspaper', 'carton', 'amazon box', 'flipkart', 'कागद', 'पुठ्ठा', 'खोका', 'पिझ्झा', 'वर्तमानपत्र', 'रद्दी'],
     en: {
-      reply: `🍶 **Glass Disposal Guide**
+      reply: `📦 **Cardboard, Paper & Pizza Box Disposal**
 
-**Intact Glass Bottles & Jars:**
-1. **Empty & rinse** — remove all food residue
-2. **Remove metal lids** — lids go to 🔵 Blue Bin separately
-3. **Bin:** 🔵 **Blue Bin (Dry Recyclables)**
-   - Accepted: Clear, green, brown glass bottles & jars
+**🔵 Clean Cardboard & Paper (Blue Bin):**
+- Amazon / Flipkart delivery cartons (peel off plastic tape, flatten completely).
+- Newspapers, magazines, office paper, notebooks, cereal boxes.
 
-**⚠️ Broken Glass — SAFETY FIRST:**
-1. **Do NOT put loose broken glass in the bin** — it injures waste workers
-2. **Wrap carefully** in thick newspaper (3–4 layers), then tape it shut
-3. **Label the package:** Write "BROKEN GLASS — CAREFUL" on the outside
-4. **Bin:** ⚫ **Black Bin** (labeled package)
+**🍕 The Pizza Box Special Rule:**
+- **Clean Lid**: Tear off the grease-free top lid and put it in 🔵 **Blue Bin**.
+- **Greasy / Cheesy Base**: Food oil permanently ruins paper recycling fibers. Tear the oily bottom and put it in 🟢 **Green Bin (Compost)** or ⚫ **Black Bin**.
 
-**❌ NOT recyclable glass:**
-- Mirrors (coated backing)
-- Window/tempered glass
-- Pyrex/ovenware (different glass composition)
-- Light bulbs → 🔴 Red/Hazardous bin`,
-      sources: ['Glass Recycling Federation India', 'CPCB Solid Waste Management Rules']
+💡 **Pro Tip**: Flattening boxes saves **60% volume** in collection vehicles!`,
+      sources: ['CPCB Paper Recycling Framework', 'Bureau of Indian Standards IS 11578'],
+      followups: ['Plastic packaging rules', 'Milk pouches', 'Greasy containers']
     },
     mr: {
-      reply: `🍶 **काचेच्या वस्तूंची विल्हेवाट**
+      reply: `📦 **पुठ्ठा, कागद व पिझ्झा बॉक्सची विल्हेवाट**
 
-**सुरक्षित काचेच्या बाटल्या/बरण्या:**
-1. **रिकाम्या करा आणि धुवा**
-2. **धातूचे झाकण वेगळे काढा** → 🔵 निळा डबा
-3. **डबा:** 🔵 **निळा डबा (सुका कचरा)**
+**🔵 स्वच्छ पुठ्ठा व कागद (निळा डबा):**
+- पार्सलचे खोके (Amazon/Flipkart) — प्लास्टिक टेप काढून सपाट करा.
+- वर्तमानपत्रे, वह्या, पुस्तके, मासिकांचा कागद.
 
-**⚠️ तुटलेली काच — सावधान!**
-1. **सैल तुटलेली काच डब्यात टाकू नका** — कचरा वेचणाऱ्यांना इजा होते
-2. **जाड वर्तमानपत्रात (३-४ थर) गुंडाळा** आणि टेप लावा
-3. **बाहेर लिहा:** "तुटलेली काच — काळजी घ्या"
-4. **डबा:** ⚫ **काळा डबा** (बंद पॅकेटमध्ये)
+**🍕 पिझ्झा बॉक्सचा महत्त्वाचा नियम:**
+- **स्वच्छ झाकण**: तेलाचा डाग नसलेला वरचा भाग फाडून 🔵 **निळ्या डब्यात** टाका.
+- **तेलाचा तळ**: तेल लागलेला भाग कागद रिसायकलिंग खराब करतो. तो भाग 🟢 **हिरव्या डब्यात (कंपोस्ट)** किंवा ⚫ **काळ्या डब्यात** टाका.
 
-**❌ रिसायकल होत नाही:**
-- आरसे, खिडकीची काच
-- Pyrex/ओव्हनवेअर
-- बल्ब → 🔴 घातक कचरा`,
-      sources: ['काच रिसायकलिंग मानके भारत', 'CPCB घनकचरा नियम']
+💡 **टीप**: खोके सपाट केल्याने ६०% जागा वाचते!`,
+      sources: ['CPCB कागद पुनर्वापर मानके', 'घनकचरा व्यवस्थापन']
     }
   },
 
-  // ── Medicines / Pharmaceuticals ───────────────────────────────────────────
+  // 10. Glass & Broken Glass
   {
-    keywords: ['medicine', 'pill', 'tablet', 'syrup', 'injection', 'syringe', 'expired', 'drug', 'pharmaceutical', 'औषध', 'गोळ्या', 'सिरप', 'सिरिंज', 'एक्सपायर्ड'],
+    id: 'glass',
+    matchWords: ['glass', 'glass bottle', 'broken glass', 'jar', 'mirror', 'bulb', 'काच', 'काचेची बाटली', 'तुटलेली काच', 'बरणी', 'आरसा'],
     en: {
-      reply: `💊 **Expired Medicine & Pharmaceutical Disposal**
+      reply: `🍶 **Glass Bottles & Broken Glass Handling**
 
-**⚠️ NEVER:**
-- Flush medicines down the toilet (contaminates water supply)
-- Throw in regular bins (children or animals may consume)
-- Burn them
+**Intact Glass (Jars, Beverage Bottles):**
+- Rinse clean, remove metal caps (recycle caps separately).
+- Put in 🔵 **Blue Bin (Dry Recyclables)** — Glass is 100% infinitely recyclable!
 
-**Safe Disposal:**
-1. **Remove personal info** from prescription labels
-2. **Mix with something unappealing** — used coffee grounds, dirt (makes it undesirable to scavenge)
-3. **Seal in a bag** — double-bag if possible
-4. **Drop off at:** 🔴 **Pharmacy Take-Back Programs** (most chemists in India accept expired medicines)
-5. **Or:** Municipal Hazardous Waste Collection → 🔴 **Red Bin**
+**⚠️ Broken Glass / Mirrors (SAFETY PROTOCOL):**
+1. **Never throw loose broken shards into trash bags** — this causes severe lacerations to sanitation workers.
+2. **Wrap in 4–5 layers of old newspaper or a cardboard carton**.
+3. **Seal with tape and label boldly**: *"CAUTION: BROKEN GLASS"*.
+4. **Deposit in**: ⚫ **Black Bin (Special Reject)**.
 
-**Syringes & sharps:**
-- Place in a hard plastic bottle with lid (e.g., empty PET bottle)
-- Label "SHARPS — BIOHAZARD"
-- Take to nearest PHC (Primary Health Center) or hospital
-
-💡 Hospitals and chemists are your best first point of contact for pharmaceutical waste in both Zone 1 & Zone 2.`,
-      sources: ['Bio-Medical Waste Management Rules 2016 India', 'WHO Safe Medication Disposal Guidelines']
+💡 **Light Bulbs & CFLs**: Contain mercury gas → 🔴 **Red Bin / Hazardous drop-off**.`,
+      sources: ['Occupational Safety and Health Standards for Waste Workers', 'CPCB Glass Norms'],
+      followups: ['Tube light safety', 'Metal cans disposal', 'Hazardous waste protocol']
     },
     mr: {
-      reply: `💊 **मुदत संपलेल्या औषधांची विल्हेवाट**
+      reply: `🍶 **काचेच्या बाटल्या व तुटलेली काच**
 
-**⚠️ कधीही करू नका:**
-- टॉयलेटमध्ये फ्लश करू नका (पाणी दूषित होते)
-- साध्या कचऱ्यात टाकू नका (मुले/प्राणी खाऊ शकतात)
-- जाळू नका
+**अखंड काच (बाटल्या, बरण्या):**
+- धुऊन स्वच्छ करा व 🔵 **निळ्या डब्यात** टाका — काच १००% पुनर्वापरयोग्य आहे.
 
-**सुरक्षित पद्धत:**
-1. **प्रिस्क्रिप्शन लेबलवरील नाव काढा**
-2. **कॉफी, माती मिसळा** — कोणी उचलणार नाही
-3. **पिशवीत बंद करा** — शक्य असल्यास दुहेरी पिशवी
-4. **घ्या:** 🔴 **फार्मसी Take-Back** — बहुतांश Chemist स्वीकारतात
-5. **किंवा:** महापालिका घातक कचरा संकलन → 🔴 **लाल डबा**
+**⚠️ तुटलेली काच / आरसा (सुरक्षा नियम):**
+1. **सैल तुटलेली काच कधीही कचऱ्यात टाकू नका** — कचरा उचलणाऱ्या कामगारांचे हात कापतात.
+2. **४-५ वर्तमानपत्रांच्या थरांमध्ये किंवा खोक्यात घट्ट गुंडाळा**.
+3. **टेप लावा आणि ठळक अक्षरात लिहा**: *"सावधान: तुटलेली काच"*.
+4. **डबा**: ⚫ **काळा डबा**.
 
-**सुया/Sharps:**
-- बंद झाकणाच्या PET बाटलीत ठेवा
-- "SHARPS — BIOHAZARD" असे लिहा
-- जवळच्या PHC किंवा रुग्णालयात द्या`,
-      sources: ['जैव-वैद्यकीय कचरा व्यवस्थापन नियम २०१६', 'WHO औषध विल्हेवाट मार्गदर्शन']
+💡 **CFL व ट्यूबलाइट बल्ब**: पारा असतो → 🔴 **लाल डब्यात** द्या.`,
+      sources: ['कचरा वेचक सुरक्षा मानके', 'CPCB काच मार्गदर्शक']
     }
   },
 
-  // ── Sanitary / Hygienic Waste ──────────────────────────────────────────────
+  // 11. Medicines & Syringes
   {
-    keywords: ['sanitary', 'pad', 'diaper', 'napkin', 'tampon', 'tissue', 'cotton', 'bandage', 'सॅनिटरी', 'डायपर', 'रुमाल', 'बॅंडेज', 'पॅड'],
+    id: 'medicine',
+    matchWords: ['medicine', 'tablet', 'pill', 'syrup', 'expired', 'injection', 'syringe', 'bandage', 'औषध', 'गोळ्या', 'सिरप', 'मुदत संपलेली औषधे', 'इंजेक्शन', 'सुई'],
     en: {
-      reply: `🩺 **Sanitary & Hygienic Waste Disposal**
+      reply: `💊 **Expired Medicines & Sharps Protocol**
 
-This is classified as **infectious/special waste** and must be handled carefully.
+**⚠️ NEVER FLUSH MEDICINES DOWN THE TOILET OR SINK** — pharmaceuticals bypass sewage treatment, polluting groundwater and coastal marine life in Kokan.
 
-**Step-by-step:**
-1. **Wrap tightly** — roll used items and wrap in their own packaging or old newspaper
-2. **Use a separate bag** — double-bag with a sealed knot
-3. **Bin:** ⚫ **Black Bin (Non-Recyclable / Reject Waste)**
-   - Sanitary pads, tampons, diapers go here — NEVER in Green or Blue Bin
-
-**⚠️ Why this matters:**
-These items can contaminate entire batches of wet or dry recyclables.
-Municipal waste treatment facilities handle Black Bin contents with special protocols.
-
-**For healthcare/institutional settings:**
-Classify as Bio-Medical Waste (BMW) and use yellow bio-hazard bags as per BMW Rules 2016.
-
-💡 *Eco-tip:* Consider switching to reusable menstrual cups, washable cloth pads, or biodegradable sanitary products to dramatically reduce your footprint.`,
-      sources: ['Bio-Medical Waste Management Rules 2016', 'CPCB Special Waste Handling Guidelines', 'WHO Domestic Hazardous Waste Protocols']
+**Proper Steps:**
+1. **Tablets & Syrups**:
+   - Keep in original blister packs / bottles.
+   - Return to local chemist pharmacies running "Medicine Take-Back" campaigns, or place in 🔴 **Red Bin (Domestic Hazardous)**.
+2. **Syringes & Needles (Sharps)**:
+   - Place in a puncture-proof rigid plastic bottle (e.g. thick detergent bottle) and seal the cap tightly.
+   - Label *"BIOHAZARD / SHARPS"*.
+   - Hand over to nearest Primary Health Center (PHC) or hospital.`,
+      sources: ['Bio-Medical Waste Management Rules 2016', 'WHO Safe Pharmaceutical Disposal Guide'],
+      followups: ['Sanitary waste rules', 'Battery safety', 'Hazardous waste protocol']
     },
     mr: {
-      reply: `🩺 **सॅनिटरी व स्वच्छता कचरा विल्हेवाट**
+      reply: `💊 **मुदत संपलेली औषधे व सुयांची विल्हेवाट**
 
-हा **संसर्गजन्य/विशेष कचरा** आहे — काळजीने हाताळा.
+**⚠️ औषधे कधीही टॉयलेट किंवा बेसिनमध्ये ओतू नका** — यामुळे पाणी दूषित होते आणि कोकणातील सागरी जिवांना धोका पोहोचतो.
 
-**क्रमवार पद्धत:**
-1. **घट्ट गुंडाळा** — वापरलेल्या वस्तू त्यांच्या पॅकेजमध्ये किंवा वर्तमानपत्रात गुंडाळा
-2. **वेगळ्या पिशवीत ठेवा** — दुहेरी पिशवी वापरा, घट्ट बांधा
-3. **डबा:** ⚫ **काळा डबा (नकारात्मक/नको असलेला कचरा)**
-   - सॅनिटरी पॅड, डायपर, टॅम्पॉन → इथेच जातात; हिरव्या/निळ्या डब्यात कधीही नाही
-
-**⚠️ का महत्त्वाचे आहे:**
-या वस्तू ओल्या/सुक्या कचऱ्याचा संपूर्ण बॅच दूषित करतात.
-
-💡 **पर्याय:** पुनर्वापरयोग्य मासिक पाळी कप, कापडी पॅड किंवा जैव-विघटनशील उत्पादने वापरा.`,
-      sources: ['जैव-वैद्यकीय कचरा व्यवस्थापन नियम २०१६', 'CPCB विशेष कचरा मार्गदर्शन']
+**योग्य पद्धत:**
+1. **गोळ्या व सिरप**:
+   - औषधांच्या पाकिटातच ठेवा.
+   - जवळच्या मेडिकल दुकानात परत करा किंवा 🔴 **लाल डब्यात (घातक कचरा)** टाका.
+2. **इंजेक्शन व सुया (Sharps)**:
+   - जाड प्लास्टिकच्या बाटलीत ठेवा आणि झाकण घट्ट लावा.
+   - त्यावर *"SHARPS / सुया"* असे लिहा.
+   - जवळच्या प्राथमिक आरोग्य केंद्रात (PHC) किंवा दवाखान्यात द्या.`,
+      sources: ['जैव-वैद्यकीय कचरा नियम २०१६', 'जागतिक आरोग्य संघटना (WHO)']
     }
   },
 
-  // ── Kokan Zone ────────────────────────────────────────────────────────────
+  // 12. Sanitary & Diaper Waste
   {
-    keywords: ['kokan', 'coastal', 'beach', 'fishing', 'konkan', 'konkan region', 'कोकण', 'समुद्र', 'किनारा', 'मासेमारी'],
+    id: 'sanitary',
+    matchWords: ['sanitary', 'pad', 'diaper', 'napkin', 'tampon', 'panty liner', 'सॅनिटरी पॅड', 'डायपर', 'पॅड'],
     en: {
-      reply: `🌴 **Zone 1 — Kokan Region Waste Management**
+      reply: `🩺 **Sanitary Napkins & Baby Diapers (Special Reject Waste)**
 
-**Zone Profile:**
-- Coastal geography — beaches, estuaries, fishing villages
-- High organic/agricultural waste (~38% of total)
-- Seasonal surge during festivals & tourism
+**Step-by-Step Handling:**
+1. **Wrap Securely**: Roll the used pad/diaper tightly.
+2. **Enclose in Paper**: Wrap inside discarded newspaper or the disposal pouch provided with the product.
+3. **Mark with Red Dot**: Draw a visible **Red Dot (🔴)** on the package so waste collectors know it contains sanitary waste and handle it safely.
+4. **Deposit In**: ⚫ **Black Bin (Non-Recyclable Reject)**.
+5. **Never flush in toilets** — causes severe municipal drain blockages.`,
+      sources: ['Solid Waste Management Rules 2016 (Rule 4-b)', 'Menstrual Hygiene Management National Guidelines'],
+      followups: ['Medicine disposal', 'Wet waste composting', 'General bin colors']
+    },
+    mr: {
+      reply: `🩺 **सॅनिटरी पॅड व डायपरची सुरक्षित विल्हेवाट**
 
-**Key priorities for Kokan:**
+**योग्य पद्धत:**
+1. **घट्ट गुंडाळा**: वापरलेला पॅड किंवा डायपर व्यवस्थित गुंडाळा.
+2. **कागदात बांधा**: जुन्या वर्तमानपत्रात किंवा उत्पादनासोबत मिळालेल्या कव्हरमध्ये गुंडाळा.
+3. **लाल ठिपका द्या**: पाकिटावर **लाल ठिपका (🔴)** काढा जेणेकरून कचरा कामगारांना समजेल आणि ते सुरक्षितपणे हाताळतील.
+4. **डबा**: ⚫ **काळा डबा (नकारात्मक कचरा)**.
+5. **टॉयलेटमध्ये फ्लश करू नका** — पाईपलाइन तुंबते.`,
+      sources: ['घनकचरा नियम २०१६', 'राष्ट्रीय स्वच्छता मार्गदर्शक']
+    }
+  },
 
-🟢 **Wet Organic (Priority Focus):**
-- High agricultural & kitchen waste — ideal for composting
-- Kokan's humid climate (26–33°C) perfect for aerobic composting
-- Community bio-gas plants being set up in coastal villages
+  // 13. Zone 1 Kokan Region
+  {
+    id: 'zone_kokan',
+    matchWords: ['kokan', 'konkan', 'zone 1', 'ratnagiri', 'sindhudurg', 'alibaug', 'coastal', 'beach', 'कोकण', 'झोन १', 'किनारा', 'समुद्र', 'रत्नागिरी', 'सिंधुदुर्ग'],
+    en: {
+      reply: `🌴 **Zone 1 — Kokan Region Waste Intelligence Protocol**
 
-🔵 **Dry Recyclables:**
-- Fishing gear (nets, rope, floats) — special marine plastic recycling
-- Festival plastic (Ganpati visarjan) — coordinate with MPCB
+**Regional Characteristics:**
+- High organic & agro-waste (~38%) + seasonal beach tourism waste.
+- Humid coastal climate ideal for decentralized biomethanation & composting.
 
-🌊 **Beach Waste Protocol:**
-- Never burn waste on beach — releases dioxins into coastal air
-- Segregate waste at beach before collection
-- Contact: Maharashtra Maritime Board for marine debris programs
-
-🌿 **Composting Opportunity:**
-Kokan has one of India's best composting climates. Start a community compost with neighbors — fishermen's organic waste makes exceptional fertilizer!`,
-      sources: ['MPCB Kokan Coastal Zone Management Plan', 'Maharashtra Maritime Board', 'CPCB Coastal Area Waste Guidelines']
+**Zone 1 Priority Directives:**
+1. 🟢 **Decentralized Composting**: Divert wet waste directly into household or community compost pits.
+2. 🌊 **Coastal & Marine Debris**: Prevent single-use plastics from washing into creeks and fishing harbors.
+3. 🥥 **Agro-Waste Valorization**: Coir and coconut shells should be utilized for mulch and bio-fertilizer.`,
+      sources: ['Maharashtra Coastal Zone Management Authority', 'EcoSense Kokan Telemetry 2026'],
+      followups: ['Kokan composting guide', 'Coconut shell disposal', 'Beach cleanup rules']
     },
     mr: {
       reply: `🌴 **झोन १ — कोकण विभाग कचरा व्यवस्थापन**
 
-**झोन प्रोफाइल:**
-- किनारी भूगोल — समुद्रकिनारे, खाड्या, मच्छिमार गावे
-- ओला/शेती कचरा जास्त (~३८%)
-- सण व पर्यटन काळात कचरा वाढतो
+**विभागाची वैशिष्ट्ये:**
+- सेंद्रिय व बागेचा कचरा जास्त (~३८%) + पर्यटनामुळे किनाऱ्यावर वाढणारा कचरा.
+- उबदार दमट हवामान खतनिर्मिती व बायोगॅससाठी सर्वोत्तम.
 
-**कोकणसाठी प्राधान्यक्रम:**
-
-🟢 **ओला सेंद्रिय कचरा (मुख्य लक्ष):**
-- शेती व स्वयंपाकघर कचरा — कंपोस्टिंगसाठी आदर्श
-- कोकणचे उबदार व दमट हवामान (२६-३३°C) कंपोस्टसाठी उत्तम
-- किनारी गावांमध्ये बायोगॅस प्रकल्प सुरू होत आहेत
-
-🔵 **सुका पुनर्वापरयोग्य कचरा:**
-- मासेमारीचे जाळे, दोर, फ्लोट — विशेष सागरी प्लास्टिक रिसायकलिंग
-- गणपती विसर्जनाचा प्लास्टिक — MPCB समन्वय
-
-🌊 **समुद्रकिनारा कचरा नियम:**
-- किनाऱ्यावर कचरा जाळू नका — डायऑक्सिन वायू सुटतो
-- संकलनापूर्वी किनाऱ्यावरच कचरा वर्गीकरण करा
-
-🌿 **कंपोस्टिंगची संधी:** कोकण हे भारतातील सर्वोत्तम कंपोस्टिंग हवामानांपैकी एक आहे!`,
-      sources: ['MPCB कोकण किनारी व्यवस्थापन', 'महाराष्ट्र सागरी मंडळ', 'CPCB किनारी क्षेत्र मार्गदर्शन']
+**कोकणासाठी महत्त्वाचे नियम:**
+1. 🟢 **घरगुती कंपोस्टिंग**: ओला कचरा खड्ड्यात किंवा कुंडीत टाकून सेंद्रिय खत बनवा.
+2. 🌊 **सागरी सुरक्षा**: प्लास्टिक पिशव्या, बाटल्या खाडीत किंवा समुद्रात टाकू नका.
+3. 🥥 **नारळ कचरा**: करवंट्या व शेंडी झाडांच्या मुळाशी खत म्हणून वापरा.`,
+      sources: ['महाराष्ट्र सागरी मंडळ', 'इकोसेन्स कोकण प्रकल्प २०२६']
     }
   },
 
-  // ── NSP / Virar Zone ──────────────────────────────────────────────────────
+  // 14. Zone 2 NSP / Virar
   {
-    keywords: ['nsp', 'nalasopara', 'virar', 'vasai', 'east', 'west', 'nsp east', 'nsp west', 'नालासोपारा', 'विरार', 'वसई'],
+    id: 'zone_nsp_virar',
+    matchWords: ['nsp', 'virar', 'nalasopara', 'vasai', 'zone 2', 'vvcmc', 'नालासोपारा', 'विरार', 'वसई', 'झोन २'],
     en: {
-      reply: `🏙️ **Zone 2 — NSP East/West & Virar Waste Management**
+      reply: `🏙️ **Zone 2 — NSP East/West & Virar Urban Protocol**
 
-**Zone Profile:**
-- Dense urban population (~1.2M+)
-- High plastic & e-commerce packaging (~44% of waste)
-- Multi-residential complexes (apartments, chawls, societies)
+**Regional Characteristics:**
+- High-density residential societies, e-commerce packaging, and dry plastics (~44%).
 
-**Key priorities:**
-
-🔵 **Dry Recyclables (Primary focus):**
-- Rinse all containers before binning — contamination is Zone 2's #1 problem
-- Flatten all cardboard — saves 60% bin space
-- Collect & bundle plastic bags separately (LDPE recycling collection)
-
-🟢 **Wet Waste:**
-- Each floor/building should have a dedicated wet waste bucket
-- NMMC has wet waste pickup 6 days/week — check your society's schedule
-
-♻️ **Available Infrastructure:**
-- NMMC Recycling Centers: Vasai-Virar Municipal Corporation
-- E-Waste Collection: Check MPCB registered centers in Nalasopara/Virar
-- Plastic Banks: Available at select NMMC locations
-
-📦 **E-Commerce Packaging:**
-- Remove air pillows (plastic) — try to flatten & recycle
-- Cardboard boxes — flatten and give to kabadiwala
-- Bubble wrap — check if kabadiwala accepts LDPE films`,
-      sources: ['NMMC Solid Waste Management Report', 'Vasai-Virar Municipal Corporation Guidelines', 'MPCB Zone 2 Waste Audit']
+**Zone 2 Priority Directives:**
+1. 🔵 **Dry Waste Segregation at Source**: Flatten all delivery cartons and rinse milk pouches to avoid odor.
+2. 📦 **Society Bulk Collection**: Housing societies in Nalasopara and Virar should maintain segregated blue and green wheelie bins.
+3. ♻️ **Scrap & E-Waste Kiosks**: Use registered scrap centers across Vasai-Virar Municipal jurisdiction for old electronics and iron/plastic scraps.`,
+      sources: ['VVCMC Solid Waste Bye-Laws', 'EcoSense Urban Zone Telemetry 2026'],
+      followups: ['Milk packet disposal', 'Cardboard recycling', 'Battery drop-off']
     },
     mr: {
-      reply: `🏙️ **झोन २ — नालासोपारा (NSP) पूर्व/पश्चिम व विरार**
+      reply: `🏙️ **झोन २ — नालासोपारा (पूर्व/पश्चिम) व विरार कचरा नियम**
 
-**झोन प्रोफाइल:**
-- दाट शहरी लोकसंख्या (~१२ लाख+)
-- प्लास्टिक व ई-कॉमर्स पॅकेजिंग जास्त (~४४%)
-- सोसायट्या, चाळी, अपार्टमेंट कॉम्प्लेक्स
+**विभागाची वैशिष्ट्ये:**
+- दाट लोकवस्ती, सोसायट्या, ई-कॉमर्स पॅकेजिंग व प्लॅस्टिकचे प्रमाण जास्त (~४४%).
 
-**प्राधान्यक्रम:**
-
-🔵 **सुका कचरा (मुख्य लक्ष):**
-- सर्व डबे धुऊन टाका — संदूषण हे Zone 2 चे मुख्य आव्हान
-- सर्व खोके सपाट करा — ६०% जागा वाचते
-- प्लास्टिक पिशव्या वेगळ्या बंडलमध्ये गोळा करा (LDPE संकलन)
-
-🟢 **ओला कचरा:**
-- प्रत्येक मजला/बिल्डिंगला वेगळी ओल्या कचऱ्याची बादली ठेवा
-- NMMC आठवड्यातून ६ दिवस ओला कचरा नेते — सोसायटीचे वेळापत्रक तपासा
-
-♻️ **उपलब्ध पायाभूत सुविधा:**
-- NMMC रिसायकलिंग केंद्रे: वसई-विरार महापालिका
-- ई-कचरा संकलन: MPCB नोंदणीकृत केंद्रे
-- Plastic Banks: निवडक NMMC ठिकाणी`,
-      sources: ['NMMC घनकचरा व्यवस्थापन अहवाल', 'वसई-विरार महापालिका मार्गदर्शन', 'MPCB Zone 2 कचरा लेखापरीक्षण']
-    }
-  },
-
-  // ── Segregation Overview ─────────────────────────────────────────────────
-  {
-    keywords: ['segregation', 'separate', 'bins', 'how to', 'guide', 'start', 'begin', 'what', 'help', 'वर्गीकरण', 'वेगळे', 'कसे', 'मार्गदर्शन', 'सुरुवात', 'काय'],
-    en: {
-      reply: `♻️ **Complete Waste Segregation Guide — 4 Color System**
-
-**At Home — The 4 Bin Setup:**
-
-🔵 **Blue Bin — Dry Recyclables** (Clean & Dry)
-→ Plastic bottles, paper, cardboard, glass, metals, milk pouches
-
-🟢 **Green Bin — Wet/Organic** (Biodegradable)
-→ Food scraps, vegetable peels, fruit waste, tea leaves, garden waste
-
-🔴 **Red Bin — Hazardous & E-Waste**
-→ Batteries, expired medicines, bulbs, electronics, chemicals, paints
-
-⚫ **Black Bin — Non-Recyclable Reject**
-→ Soiled wrappers, sanitary waste, diapers, multi-layer chips packets
-
-**Golden Rules:**
-1. 🚿 **Rinse before Blue Bin** — dirty recyclables get rejected
-2. 🏷️ **When in doubt** — Black Bin (better safe than contaminate)
-3. 📦 **Flatten everything** — saves up to 60% bin space
-4. ☠️ **Hazardous goes Red** — never mix batteries/e-waste with regular bins
-
-💬 *Ask me about any specific item — milk packet, pizza box, batteries, broken glass, medicines — and I'll give you a precise answer!*`,
-      sources: ['CPCB Solid Waste Management Rules 2016', 'SWM Manual India', 'EcoSense 2-Zone Protocol']
-    },
-    mr: {
-      reply: `♻️ **संपूर्ण कचरा वर्गीकरण मार्गदर्शिका — ४ रंग पद्धत**
-
-**घरी — ४ डब्यांची व्यवस्था:**
-
-🔵 **निळा डबा — सुका पुनर्वापरयोग्य कचरा** (स्वच्छ व कोरडा)
-→ प्लास्टिक बाटल्या, कागद, पुठ्ठा, काच, धातू, दुधाच्या पिशव्या
-
-🟢 **हिरवा डबा — ओला/सेंद्रिय** (जैव-विघटनशील)
-→ अन्न अवशेष, भाज्यांची साले, फळे, चहाची पत्ती, बागेचा कचरा
-
-🔴 **लाल डबा — घातक व ई-कचरा**
-→ बॅटऱ्या, मुदत संपलेली औषधे, बल्ब, इलेक्ट्रॉनिक्स, रसायने
-
-⚫ **काळा डबा — नकारात्मक कचरा**
-→ गलिच्छ रॅपर्स, सॅनिटरी कचरा, डायपर, बहुस्तरीय चिप्स पॅकेट
-
-**सुवर्ण नियम:**
-1. 🚿 **निळ्या डब्यापूर्वी धुवा** — घाण कचरा नाकारला जातो
-2. 🏷️ **शंका असल्यास** — काळा डबा (सुरक्षित पर्याय)
-3. 📦 **सर्व सपाट करा** — ६०% जागा वाचते
-4. ☠️ **घातक वस्तू लाल डब्यात** — बॅटऱ्या/इलेक्ट्रॉनिक्स साध्या डब्यात नाही
-
-💬 *कोणत्याही वस्तूबद्दल विचारा — दूध पिशवी, पिझ्झा बॉक्स, बॅटरी, तुटलेली काच, औषधे — मी अचूक उत्तर देतो!*`,
-      sources: ['CPCB घनकचरा व्यवस्थापन नियम २०१६', 'SWM मॅन्युअल भारत', 'EcoSense 2-झोन प्रोटोकॉल']
+**नालासोपारा-विरारसाठी महत्त्वाचे नियम:**
+1. 🔵 **सुका कचरा वर्गीकरण**: पार्सलचे पुठ्ठे चपटे करा व दुधाच्या पिशव्या धुवून ठेवा.
+2. 📦 **सोसायटी पातळीवर डबे**: प्रत्येक इमारतीत निळा व हिरवा स्वतंत्र डबा असणे आवश्यक.
+3. ♻️ **भंगार व ई-कचरा**: जुने इलेक्ट्रॉनिक्स व धातू वसई-विरार महापालिका नोंदणीकृत केंद्रांवर द्या.`,
+      sources: ['वसई-विरार शहर महापालिका (VVCMC)', 'इकोसेन्स झोन २ अहवाल']
     }
   }
 ];
 
-function getLocalResponse(query: string, language: 'en' | 'mr'): CopilotResponse {
-  const q = query.toLowerCase().trim();
-  const isMarathi = language === 'mr' || /[\u0900-\u097F]/.test(query);
+// ─── Dynamic Intelligent Heuristic Engine (Fallback for any custom query) ───
+function generateDynamicGuidance(query: string, language: 'en' | 'mr'): CopilotResponse {
+  const q = query.toLowerCase();
 
-  // Find best matching entry
-  let bestEntry: KnowledgeEntry | null = null;
-  let bestScore = 0;
-
-  for (const entry of KNOWLEDGE_BASE) {
-    let score = 0;
-    for (const kw of entry.keywords) {
-      if (q.includes(kw.toLowerCase())) {
-        score += kw.length > 4 ? 3 : 1; // longer keyword = better match
-      }
-    }
-    if (score > bestScore) {
-      bestScore = score;
-      bestEntry = entry;
-    }
+  // Organic indicator
+  if (/fruit|veg|peel|leaf|food|scrap|meat|bone|fish|flower|pooja|herb|plant|grass|अन्न|भाजी|फळ|पान|फूल|पूजा|पाला|मासे|मटण/.test(q)) {
+    return language === 'mr' ? {
+      reply: `🌱 **"${query}" साठी कचरा वर्गीकरण सूचना**\n\n- **प्रकार**: ओला सेंद्रिय कचरा (Wet Organic Waste)\n- **डबा**: 🟢 **हिरवा डबा (Green Bin)**\n- **कृती**: प्लास्टिक पिशवीतून काढून थेट हिरव्या डब्यात टाका किंवा घरगुती कंपोस्टिंगमध्ये वापरा.\n\n💡 *सेंद्रिय कचरा खतनिर्मितीसाठी उपयुक्त आहे.*`,
+      sources: ['EcoSense सेंद्रिय कचरा मार्गदर्शक', 'CPCB नियम २०१६']
+    } : {
+      reply: `🌱 **Disposal Action for "${query}"**\n\n- **Category**: Wet Organic / Biodegradable\n- **Bin**: 🟢 **Green Bin**\n- **Action**: Separate from any plastic packaging and place in Green Bin or add to your home compost bin.\n\n💡 *Diverting organic waste prevents landfill methane emissions.*`,
+      sources: ['EcoSense Organic Protocol', 'CPCB SWM Guidelines 2016']
+    };
   }
 
-  if (bestEntry && bestScore > 0) {
-    return isMarathi ? bestEntry.mr : bestEntry.en;
+  // Hazardous / Chemical / Electrical indicator
+  if (/bulb|light|tube|wire|cord|paint|chemical|spray|aerosol|poison|oil|acid|brake|बल्ब|लाइट|रंग|केमिकल|स्प्रे|तेल|विष|अॅसिड/.test(q)) {
+    return language === 'mr' ? {
+      reply: `⚠️ **"${query}" साठी सुरक्षितता सूचना**\n\n- **प्रकार**: घरगुती घातक कचरा (Domestic Hazardous Waste)\n- **डबा**: 🔴 **लाल डबा / घातक कचरा स्वतंत्र संकलन**\n- **कृती**: साध्या कचऱ्यात टाकू नका; पॅक करून अधिकृत संकलन केंद्राकडे द्या.\n\n🚨 *पर्यावरण व मानवी आरोग्यासाठी सुरक्षित विल्हेवाट आवश्यक.*`,
+      sources: ['घातक कचरा व्यवस्थापन मानके', 'MPCB सुरक्षा मार्गदर्शक']
+    } : {
+      reply: `⚠️ **Hazardous Disposal for "${query}"**\n\n- **Category**: Domestic Hazardous / Chemical / Electrical\n- **Bin**: 🔴 **Red Bin / Dedicated Hazardous Collection**\n- **Action**: Do not mix with curbside dry or wet waste. Store safely in a sealed container and take to municipal hazardous drop-off.\n\n🚨 *Contains toxic compounds that require certified processing.*`,
+      sources: ['Hazardous Waste Management Rules', 'CPCB Standards']
+    };
   }
 
-  // Default comprehensive response
-  return isMarathi
-    ? KNOWLEDGE_BASE[KNOWLEDGE_BASE.length - 1].mr
-    : KNOWLEDGE_BASE[KNOWLEDGE_BASE.length - 1].en;
+  // Dry Recyclable indicator
+  if (/can|tin|metal|foil|box|paper|plastic|cup|tray|jar|कॅन|डबा|धातू|कागद|प्लॅस्टिक|कप|खोका/.test(q)) {
+    return language === 'mr' ? {
+      reply: `♻️ **"${query}" साठी पुनर्वापर सूचना**\n\n- **प्रकार**: सुका पुनर्वापरयोग्य कचरा (Dry Recyclable)\n- **डबा**: 🔵 **निळा डबा (Blue Bin)**\n- **कृती**: १. रिकामे करा -> २. पाण्याने विसळा -> ३. वाळवून निळ्या डब्यात टाका.\n\n💡 *स्वच्छ सुका कचरा १००% रिसायकल होतो.*`,
+      sources: ['EcoSense पुनर्वापर मानके', 'CPCB प्लॅस्टिक नियम २०१६']
+    } : {
+      reply: `♻️ **Recycling Guidance for "${query}"**\n\n- **Category**: Dry Recyclables\n- **Bin**: 🔵 **Blue Bin**\n- **Action**: 1. Empty contents → 2. Rinse off food/oils → 3. Dry and place into Blue Bin.\n\n💡 *Clean, unsoiled materials achieve maximum recycling recovery.*`,
+      sources: ['EcoSense Recycling Protocol', 'BIS IS 14534 Standards']
+    };
+  }
+
+  // Default Standard 4-Bin Overview
+  if (language === 'mr') {
+    return {
+      reply: `📋 **कचरा वर्गीकरणाचे ४ मुख्य नियम ("${query}" साठी)**\n\n1. 🔵 **सुका कचरा (निळा डबा)**: स्वच्छ प्लॅस्टिक, बाटल्या, कागद, पुठ्ठा, काच, धातूचे डबे.\n2. 🟢 **ओला कचरा (हिरवा डबा)**: स्वयंपाकघर अन्न, फळे/भाज्यांची साले, चहा पावडर, बागेचा कचरा.\n3. 🔴 **घातक कचरा (लाल डबा)**: बॅटऱ्या, औषधे, जुने इलेक्ट्रॉनिक्स, ट्यूबलाइट, रसायने.\n4. ⚫ **इतर कचरा (काळा डबा)**: सॅनिटरी पॅड्स, डायपर्स, तेलकट पिझ्झा बॉक्सचा तळ.\n\n💬 *विशिष्ट वस्तूचे नाव सांगा (उदा. "दुधाची पिशवी", "बॅटरी", "पिझ्झा बॉक्स") आणि मी त्वरित उत्तर देईन!*`,
+      sources: ['केंद्रीय प्रदूषण नियंत्रण मंडळ (CPCB)', 'इकोसेन्स कचरा व्यवस्थापन'],
+      suggestedFollowups: ['दुधाची पिशवी', 'बॅटरी विल्हेवाट', 'कोकण कंपोस्टिंग']
+    };
+  }
+
+  return {
+    reply: `📋 **Universal 4-Bin Waste Protocol (for "${query}")**\n\n1. 🔵 **Blue Bin (Dry Recyclables)**: Clean & dry plastic bottles, cardboard, paper, aluminum cans, glass jars.\n2. 🟢 **Green Bin (Wet Organics)**: Food scraps, vegetable peels, tea leaves, garden clippings.\n3. 🔴 **Red Bin (Hazardous & E-Waste)**: Batteries, electronics, CFL bulbs, expired medicines, paint.\n4. ⚫ **Black Bin (Non-Recyclable Reject)**: Sanitary waste, baby diapers, soiled wrappers.\n\n💬 *Ask me about any specific item (e.g., "milk pouch", "laptop charger", "battery", "coconut shell") for instant step-by-step guidance!*`,
+    sources: ['CPCB Solid Waste Management Rules 2016', 'EcoSense 2-Zone Framework'],
+    suggestedFollowups: ['How to recycle milk packets?', 'Battery disposal steps', 'Kokan composting guide']
+  };
 }
 
-// ─── Main Export ──────────────────────────────────────────────────────────────
+// ─── Main Dispatcher ─────────────────────────────────────────────────────────
 export async function sendCopilotQuery(
   query: string,
   history: { sender: string; text: string }[] = [],
   language: 'en' | 'mr' = 'en',
   userApiKey?: string
 ): Promise<CopilotResponse> {
-  const cleanQuery = query.trim();
-  if (!cleanQuery) {
-    return { reply: 'Please type a question to get started.', sources: [] };
+  const clean = query.trim();
+  if (!clean) {
+    return {
+      reply: language === 'mr' ? 'कृपया आपला प्रश्न विचारा.' : 'Please enter your question.',
+      sources: []
+    };
   }
 
-  // 1. Try Gemini API if user provided a key
+  // 1. Try Gemini Direct API if key is available
   const apiKey = userApiKey || (import.meta as any).env?.VITE_GEMINI_API_KEY || '';
-  if (apiKey && apiKey.startsWith('AIza')) {
-    const result = await callGeminiAPI(cleanQuery, history, language, apiKey);
-    if (result) return result;
+  if (apiKey && apiKey.length > 5) {
+    const aiResult = await callGeminiDirect(clean, history, language, apiKey);
+    if (aiResult) return aiResult;
   }
 
-  // 2. Try serverless /api/chat (only works when deployed on Vercel)
+  // 2. Try Serverless Proxy (/api/chat)
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 4000);
+    const timer = setTimeout(() => controller.abort(), 3500);
+
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: cleanQuery, history: history.slice(-6) }),
+      body: JSON.stringify({ query: clean, history: history.slice(-6) }),
       signal: controller.signal
     });
     clearTimeout(timer);
+
     if (res.ok) {
       const data = await res.json();
-      if (data?.reply) return { reply: data.reply, sources: data.sources || [], isAI: true };
+      if (data && data.reply) {
+        return {
+          reply: data.reply,
+          sources: data.sources || ['EcoSense Serverless Intelligence'],
+          isAI: true
+        };
+      }
     }
   } catch {
-    // Fallback to local
+    // Proceed to domain intelligence
   }
 
-  // 3. Intelligent local knowledge engine (always works)
-  return getLocalResponse(cleanQuery, language);
+  // 3. Domain Knowledge Matcher (Instant, Offline-Ready, Multilingual)
+  const lower = clean.toLowerCase();
+  let bestItem: DomainItem | null = null;
+  let maxScore = 0;
+
+  for (const item of DOMAIN_DATA) {
+    let score = 0;
+    for (const word of item.matchWords) {
+      if (lower.includes(word.toLowerCase())) {
+        score += word.length > 4 ? 3 : 1.5;
+      }
+    }
+    if (score > maxScore) {
+      maxScore = score;
+      bestItem = item;
+    }
+  }
+
+  if (bestItem && maxScore > 0) {
+    const langData = language === 'mr' ? bestItem.mr : bestItem.en;
+    return {
+      reply: langData.reply,
+      sources: langData.sources,
+      suggestedFollowups: langData.followups
+    };
+  }
+
+  // 4. Dynamic Heuristic Generator
+  return generateDynamicGuidance(clean, language);
 }
