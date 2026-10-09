@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Bot, User, Copy, Check, Plus, ArrowUp,
-  Trash2, Battery, Leaf, Package
+  Trash2, Battery, Leaf, Package, RotateCcw, AlertCircle, ArrowRight
 } from 'lucide-react';
 import type { CopilotMessage } from '../../types';
 import { useEco } from '../../context/EcoContext';
@@ -25,7 +25,7 @@ function MarkdownText({ text }: { text: string }) {
           );
         }
 
-        // Bullet points
+        // Bullet points (standard - or emoji bullets)
         const bulletMatch = trimmed.match(/^([-*•]|✅|❌|💡|🔵|🟢|🔴|⚫|♻️|⚠️|📦|📱|🍕|🍶|🥛|🌱|🪴|💊|🔋|💬|📋|🌿)\s(.+)/);
         if (bulletMatch) {
           return (
@@ -88,10 +88,11 @@ export const EcoCopilotChat: React.FC = () => {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [lastFailedQuery, setLastFailedQuery] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-scroll on new message
+  // Auto-scroll on new message or typing state change
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
@@ -107,6 +108,8 @@ export const EcoCopilotChat: React.FC = () => {
   const handleSend = async (textToSend?: string) => {
     const query = (textToSend ?? input).trim();
     if (!query || isTyping) return;
+
+    setLastFailedQuery(null);
 
     const userMsg: CopilotMessage = {
       id: `user-${Date.now()}`,
@@ -131,19 +134,22 @@ export const EcoCopilotChat: React.FC = () => {
         id: `bot-${Date.now()}`,
         sender: 'assistant',
         text: result.reply,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        groundedSources: result.sources,
+        suggestedActions: result.suggestedFollowups
       };
 
       setMessages((prev) => [...prev, botMsg]);
     } catch {
+      setLastFailedQuery(query);
       setMessages((prev) => [
         ...prev,
         {
           id: `bot-${Date.now()}`,
           sender: 'assistant',
           text: language === 'mr'
-            ? '🔵 **सुका कचरा** → निळा डबा (प्लास्टिक, कागद, काच)\n🟢 **ओला कचरा** → हिरवा डबा (अन्न, जैविक)\n🔴 **घातक/ई-कचरा** → लाल डबा (बॅटरी, औषधे)'
-            : '🔵 **Dry Recyclables** → Blue Bin (clean plastic, cardboard, glass)\n🟢 **Wet Organic** → Green Bin (food waste, garden clippings)\n🔴 **Hazardous / E-Waste** → Red Bin (batteries, chemicals, e-waste)',
+            ? '⚠️ **नेटवर्क किंवा सर्व्हर समस्या आली.** कृपया पुन्हा प्रयत्न करा (Retry).'
+            : '⚠️ **Unable to connect to AI engine.** Please check your connection and tap retry below.',
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }
       ]);
@@ -169,7 +175,7 @@ export const EcoCopilotChat: React.FC = () => {
     {
       icon: Trash2,
       title: 'प्लास्टिक रिसायकलिंग',
-      desc: 'प्लास्टिक बाटल्या व पॅकेट्स कशा वेगळ्या कराव्यात?',
+      desc: 'प्लास्टिक बाटल्या व दुधाच्या पिशव्या कशा रिसायकल कराव्यात?',
       prompt: 'प्लास्टिक बाटल्या आणि दुधाच्या पिशव्या कशा रिसायकल कराव्यात?'
     },
     {
@@ -218,7 +224,7 @@ export const EcoCopilotChat: React.FC = () => {
   ];
 
   return (
-    <div className="flex flex-col h-[calc(100vh-10rem)] max-h-[850px] min-h-[500px] w-full max-w-4xl mx-auto bg-white rounded-2xl border border-gray-200/90 shadow-sm overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-10rem)] max-h-[850px] min-h-[520px] w-full max-w-4xl mx-auto bg-white rounded-2xl border border-gray-200/90 shadow-sm overflow-hidden">
       
       {/* ── Top Bar ── */}
       <div className="h-14 px-4 sm:px-6 border-b border-gray-100 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0 z-10">
@@ -305,7 +311,7 @@ export const EcoCopilotChat: React.FC = () => {
                 )}
 
                 <div
-                  className={`relative group rounded-2xl px-4 py-3 max-w-[85%] sm:max-w-[78%] ${
+                  className={`relative group rounded-2xl px-4 py-3 max-w-[88%] sm:max-w-[80%] ${
                     isUser
                       ? 'bg-gray-900 text-white rounded-br-xs'
                       : 'bg-gray-50 border border-gray-200/80 text-gray-900 rounded-bl-xs'
@@ -332,6 +338,23 @@ export const EcoCopilotChat: React.FC = () => {
                     <MarkdownText text={msg.text} />
                   )}
 
+                  {/* Contextual Follow-up Suggestions */}
+                  {!isUser && msg.suggestedActions && msg.suggestedActions.length > 0 && (
+                    <div className="mt-3 pt-2.5 border-t border-gray-200/60 flex flex-wrap gap-1.5">
+                      {msg.suggestedActions.map((f, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => handleSend(f)}
+                          disabled={isTyping}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-emerald-50 text-emerald-900 hover:text-emerald-950 text-xs font-medium rounded-lg border border-gray-200 hover:border-emerald-300 transition-all cursor-pointer disabled:opacity-50 shadow-2xs"
+                        >
+                          <span>{f}</span>
+                          <ArrowRight className="w-2.5 h-2.5 text-emerald-600" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
                   <span
                     className={`block text-[10px] mt-1.5 ${
                       isUser ? 'text-right text-gray-400' : 'text-left text-gray-400'
@@ -351,16 +374,38 @@ export const EcoCopilotChat: React.FC = () => {
           })
         )}
 
+        {/* Retry Banner on Failure */}
+        {lastFailedQuery && !isTyping && (
+          <div className="max-w-3xl mx-auto flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+              <span>{language === 'mr' ? 'संदेश पाठवता आला नाही.' : 'Message failed to process.'}</span>
+            </div>
+            <button
+              onClick={() => handleSend(lastFailedQuery)}
+              className="flex items-center gap-1 font-semibold px-3 py-1 bg-white border border-red-300 rounded-lg hover:bg-red-100 transition-colors cursor-pointer text-red-900"
+            >
+              <RotateCcw className="w-3 h-3" />
+              {language === 'mr' ? 'पुन्हा प्रयत्न करा' : 'Retry'}
+            </button>
+          </div>
+        )}
+
         {/* Typing indicator */}
         {isTyping && (
           <div className="flex gap-3 max-w-3xl mx-auto items-start">
             <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
               <Bot className="w-4 h-4" />
             </div>
-            <div className="bg-gray-50 border border-gray-200 rounded-2xl rounded-bl-xs px-4 py-3 flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '0ms' }} />
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '150ms' }} />
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+            <div className="bg-gray-50 border border-gray-200 rounded-2xl rounded-bl-xs px-4 py-3 flex items-center gap-2 shadow-xs">
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+              <span className="text-xs text-gray-500 font-medium">
+                {language === 'mr' ? 'उत्तर तयार करत आहे...' : 'Analyzing & generating answer...'}
+              </span>
             </div>
           </div>
         )}
